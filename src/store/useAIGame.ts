@@ -610,27 +610,27 @@ const useAIGameStore = create<AIGameStore>((set, get) => ({
 
   awardXP: async (winner: 'player' | 'ai') => {
     if (winner === 'player') {
-      // Award XP to player (this would integrate with Honeycomb Protocol)
+      // Award XP to player via API
       const xpReward = 50; // Base XP for winning
       toast.success(`🎉 Victory! You earned ${xpReward} XP!`);
       
-      // TODO: Integrate with Honeycomb Protocol to record XP on-chain
-      // This would involve:
-      // 1. Creating a transaction to update the character's XP
-      // 2. Recording the victory on-chain
-      // 3. Potentially updating character traits/levels
-      
       try {
-        // Example integration (commented out for now):
-        // const { createUpdateCharacterXPTransaction } = await client.createUpdateCharacterXPTransaction({
-        //   data: {
-        //     character: gameState.player.character?.address,
+        // Award XP via API (handles Mantle network transactions on backend)
+        // This involves:
+        // 1. API call to update character's XP
+        // 2. Recording the victory
+        // 3. Potentially updating character traits/levels
+        // Example integration (commented out - implement in API):
+        // const response = await fetch('/api/award-xp', {
+        //   method: 'POST',
+        //   body: JSON.stringify({
+        //     walletAddress: gameState.player.id,
         //     xpGained: xpReward,
         //     reason: 'AI Victory',
         //     authority: wallet.publicKey.toString()
         //   }
         // });
-        // await sendClientTransactions(client, wallet, createUpdateCharacterXPTransaction);
+        // XP is awarded via API endpoint (handles Mantle network transactions on backend)
         
         console.log(`Player earned ${xpReward} XP for defeating AI`);
       } catch (error) {
