@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { PrivyProvider } from "@/components/privy-provider";
+import { PrivyProvider } from "@/components/PrivyProvider";
+import NavBar from "@/components/NavBar";
+import Marketplace from "@/components/Marketplace";
+import { ToastContainer } from "react-toastify";
+import Footer from "@/components/Footer";
+import OnboardingDialog from "@/components/OnboardingDialog";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,7 +33,18 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <PrivyProvider>{children}</PrivyProvider>
+        <PrivyProvider>
+          <OnboardingDialog />
+          <div className="min-h-screen bg-[url('/grid-lines.png')] bg-cover bg-center relative">
+            <div className="min-h-screen bg-[url('/bg-gradient.png')] bg-cover bg-center">
+              <NavBar />
+              {children}
+              <Marketplace />
+              <Footer />
+            </div>
+          </div>
+          <ToastContainer autoClose={3000} />
+        </PrivyProvider>
       </body>
     </html>
   );

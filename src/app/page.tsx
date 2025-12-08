@@ -1,11 +1,28 @@
-import { WalletConnect } from "@/components/wallet-connect";
+import ConnectButton from "@/components/ConnectButton";
+import GetstartedButton from "@/components/GetstartedButton";
+import { Button } from "@/components/ui/button";
+import { WalletConnect } from "@/components/WalletConnect";
+import Link from "next/link";
 
 export default function Home() {
   return (
-    <div className="min-h-screen p-8">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-bold mb-8">Stake Wars Mantle</h1>
-        <WalletConnect />
+    <div>
+      <div className="flex flex-col items-center mt-5">
+        <img src="/stake-wars-logo.png" alt="stake wars logo" className="size-[320px] hidden sm:block"/>
+        <h1 className="font-bold text-2xl -mt-4 mb-1">Welcome to Stakewars</h1>
+        <p className="font-light text-lg text-center">Connect your wallet to access a whole new universe</p>
+      </div>
+
+      <div className='flex flex-col gap-4.5 justify-center items-center mt-10 pb-20'>
+        <div className='flex justify-center items-center'>
+        <ConnectButton width={'w-full'}  />
+        </div>
+        <GetstartedButton />
+        <Link href="/tournaments">
+          <Button className="w-[200px] bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold py-3 rounded-lg shadow-lg">
+            🏆 Tournaments
+          </Button>
+        </Link>
       </div>
     </div>
   );
