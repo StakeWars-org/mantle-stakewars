@@ -22,7 +22,7 @@ export interface Character {
 export const CHARACTERS: Character[] = [
   {
     "id": "hidden_leaf-fire",
-    "nickname": "Blazefang",
+    "nickname": "Kazan",
     "village": "Hidden Leaf",
     "specialty": "Fire Style Scythe Specialist from Hidden Leaf",
     "baseHealth": 200,
@@ -75,7 +75,7 @@ export const CHARACTERS: Character[] = [
   },
   {
     "id": "hidden_leaf-water",
-    "nickname": "Stillmist",
+    "nickname": "Suien",
     "village": "Hidden Leaf",
     "specialty": "Water Style Scythe Specialist from Hidden Leaf",
     "baseHealth": 200,
@@ -128,7 +128,7 @@ export const CHARACTERS: Character[] = [
   },
   {
     "id": "hidden_leaf-wind",
-    "nickname": "Galecut",
+    "nickname": "Fūjin",
     "village": "Hidden Leaf",
     "specialty": "Wind Style Scythe Specialist from Hidden Leaf",
     "baseHealth": 200,
@@ -181,7 +181,7 @@ export const CHARACTERS: Character[] = [
   },
   {
     "id": "hidden_leaf-earth",
-    "nickname": "Gravemark",
+    "nickname": "Dōgan",
     "village": "Hidden Leaf",
     "specialty": "Earth Style Sword Specialist from Hidden Leaf",
     "baseHealth": 200,
@@ -234,7 +234,7 @@ export const CHARACTERS: Character[] = [
   },
   {
     "id": "hidden_leaf-lightning",
-    "nickname": "Boltveil",
+    "nickname": "Raizen",
     "village": "Hidden Leaf",
     "specialty": "Lightning Style Sword Specialist from Hidden Leaf",
     "baseHealth": 200,
@@ -287,7 +287,7 @@ export const CHARACTERS: Character[] = [
   },
   {
     "id": "hidden_sand-fire",
-    "nickname": "Cindershard",
+    "nickname": "Shazan",
     "village": "Hidden Sand",
     "specialty": "Fire Style Kunai Specialist from Hidden Sand",
     "baseHealth": 200,
@@ -340,7 +340,7 @@ export const CHARACTERS: Character[] = [
   },
   {
     "id": "hidden_sand-water",
-    "nickname": "Miragebite",
+    "nickname": "Mizai",
     "village": "Hidden Sand",
     "specialty": "Water Style Shuriken Specialist from Hidden Sand",
     "baseHealth": 200,
@@ -393,7 +393,7 @@ export const CHARACTERS: Character[] = [
   },
   {
     "id": "hidden_sand-wind",
-    "nickname": "Dustveil",
+    "nickname": "Kazeo",
     "village": "Hidden Sand",
     "specialty": "Wind Style Shuriken Specialist from Hidden Sand",
     "baseHealth": 200,
@@ -446,7 +446,7 @@ export const CHARACTERS: Character[] = [
   },
   {
     "id": "hidden_sand-earth",
-    "nickname": "Cragthorn",
+    "nickname": "Renga",
     "village": "Hidden Sand",
     "specialty": "Earth Style Kunai Specialist from Hidden Sand",
     "baseHealth": 200,
@@ -499,7 +499,7 @@ export const CHARACTERS: Character[] = [
   },
   {
     "id": "hidden_sand-lightning",
-    "nickname": "Shocklash",
+    "nickname": "Raika",
     "village": "Hidden Sand",
     "specialty": "Lightning Style Shuriken Specialist from Hidden Sand",
     "baseHealth": 200,
@@ -552,7 +552,7 @@ export const CHARACTERS: Character[] = [
   },
   {
     "id": "hidden_mist-fire",
-    "nickname": "Smokejaw",
+    "nickname": "Enkiri",
     "village": "Hidden Mist",
     "specialty": "Fire Style Shuriken Specialist from Hidden Mist",
     "baseHealth": 200,
@@ -605,7 +605,7 @@ export const CHARACTERS: Character[] = [
   },
   {
     "id": "hidden_mist-water",
-    "nickname": "Frostrill",
+    "nickname": "Kirisame",
     "village": "Hidden Mist",
     "specialty": "Water Style Sword Specialist from Hidden Mist",
     "baseHealth": 200,
@@ -658,7 +658,7 @@ export const CHARACTERS: Character[] = [
   },
   {
     "id": "hidden_mist-wind",
-    "nickname": "Ripplecut",
+    "nickname": "Shien",
     "village": "Hidden Mist",
     "specialty": "Wind Style Scythe Specialist from Hidden Mist",
     "baseHealth": 200,
@@ -711,7 +711,7 @@ export const CHARACTERS: Character[] = [
   },
   {
     "id": "hidden_mist-earth",
-    "nickname": "Mudveil",
+    "nickname": "Doro",
     "village": "Hidden Mist",
     "specialty": "Earth Style Sword Specialist from Hidden Mist",
     "baseHealth": 200,
@@ -764,7 +764,7 @@ export const CHARACTERS: Character[] = [
   },
   {
     "id": "hidden_mist-lightning",
-    "nickname": "Mistvolt",
+    "nickname": "Raiko",
     "village": "Hidden Mist",
     "specialty": "Lightning Style Sword Specialist from Hidden Mist",
     "baseHealth": 200,
@@ -817,7 +817,7 @@ export const CHARACTERS: Character[] = [
   },
   {
     "id": "hidden_cloud-fire",
-    "nickname": "Brandclap",
+    "nickname": "Enrai",
     "village": "Hidden Cloud",
     "specialty": "Fire Style Shuriken Specialist from Hidden Cloud",
     "baseHealth": 200,
@@ -870,7 +870,7 @@ export const CHARACTERS: Character[] = [
   },
   {
     "id": "hidden_cloud-water",
-    "nickname": "Raindrift",
+    "nickname": "Suirai",
     "village": "Hidden Cloud",
     "specialty": "Water Style Kunai Specialist from Hidden Cloud",
     "baseHealth": 200,
@@ -923,7 +923,7 @@ export const CHARACTERS: Character[] = [
   },
   {
     "id": "hidden_cloud-wind",
-    "nickname": "Stormshade",
+    "nickname": "Fūra",
     "village": "Hidden Cloud",
     "specialty": "Wind Style Scythe Specialist from Hidden Cloud",
     "baseHealth": 200,
@@ -976,7 +976,7 @@ export const CHARACTERS: Character[] = [
   },
   {
     "id": "hidden_cloud-earth",
-    "nickname": "Stonewire",
+    "nickname": "Ganshi",
     "village": "Hidden Cloud",
     "specialty": "Earth Style Scythe Specialist from Hidden Cloud",
     "baseHealth": 200,
@@ -1029,7 +1029,7 @@ export const CHARACTERS: Character[] = [
   },
   {
     "id": "hidden_cloud-lightning",
-    "nickname": "Blinkrend",
+    "nickname": "Shiden",
     "village": "Hidden Cloud",
     "specialty": "Lightning Style Sword Specialist from Hidden Cloud",
     "baseHealth": 200,

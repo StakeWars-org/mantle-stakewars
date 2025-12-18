@@ -316,11 +316,11 @@ export default function Marketplace() {
                       <div className={isOwned ? 'blur-sm' : ''}>
                         <div className="bg-[#040404] rounded-[10px] flex justify-center p-3 mb-3">
                           <img
-                            src={`/characters/${character.id}.png`}
+                            src={`/custom-assets/characters/${character.id}.png`}
                             alt={character.nickname}
                             width={120}
                             height={120}
-                            className="object-cover"
+                            className="object-cover w-full"
                           />
                         </div>
 
