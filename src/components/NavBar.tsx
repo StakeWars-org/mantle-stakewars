@@ -9,6 +9,7 @@ import SearchDialog from './SearchDialog'
 import { usePrivy, useWallets } from '@privy-io/react-auth'
 import useOnlineGameStore from '@/store/useOnlineGame'
 import { toast } from 'react-toastify'
+import { useSound } from '@/contexts/SoundContext'
 import {
   Home,
   Gamepad2,
@@ -25,6 +26,8 @@ import {
   LogOut,
   Copy,
   Check,
+  Volume2,
+  VolumeX,
   LucideIcon
 } from 'lucide-react'
 
@@ -52,6 +55,7 @@ export default function NavBar() {
   const { wallets } = useWallets();
   const path = usePathname();
   const { roomId } = useOnlineGameStore();
+  const { isMuted, toggleMute } = useSound();
   const [menuOpen, setMenuOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -134,6 +138,21 @@ export default function NavBar() {
 
         {/* Right Side Actions */}
         <div className="flex items-center gap-2">
+          {/* Mute/Unmute Button */}
+          <button
+            onClick={toggleMute}
+            data-no-sound
+            className="p-2 text-white hover:bg-gray-800 rounded-lg transition-colors"
+            aria-label={isMuted ? "Unmute sound" : "Mute sound"}
+            title={isMuted ? "Unmute sound" : "Mute sound"}
+          >
+            {isMuted ? (
+              <VolumeX className="w-5 h-5" />
+            ) : (
+              <Volume2 className="w-5 h-5" />
+            )}
+          </button>
+
           {/* Mobile Search */}
           {path !== `/game-play/${roomId}` && (
             <div className="sm:hidden">

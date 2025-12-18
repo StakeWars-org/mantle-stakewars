@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { PrivyProvider } from "@/components/PrivyProvider";
+import { SoundProvider } from "@/contexts/SoundContext";
 import NavBar from "@/components/NavBar";
 import Marketplace from "@/components/Marketplace";
 import { ToastContainer } from "react-toastify";
@@ -34,16 +35,18 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <PrivyProvider>
-          <OnboardingDialog />
-          <div className="min-h-screen bg-[url('/grid-lines.png')] bg-cover bg-center relative">
-            <div className="min-h-screen bg-[url('/bg-gradient.png')] bg-cover bg-center">
-              <NavBar />
-              {children}
-              <Marketplace />
-              <Footer />
+          <SoundProvider>
+            <OnboardingDialog />
+            <div className="min-h-screen bg-[url('/grid-lines.png')] bg-cover bg-center relative">
+              <div className="min-h-screen bg-[url('/bg-gradient.png')] bg-cover bg-center">
+                <NavBar />
+                {children}
+                <Marketplace />
+                <Footer />
+              </div>
             </div>
-          </div>
-          <ToastContainer autoClose={3000} />
+            <ToastContainer autoClose={3000} />
+          </SoundProvider>
         </PrivyProvider>
       </body>
     </html>
