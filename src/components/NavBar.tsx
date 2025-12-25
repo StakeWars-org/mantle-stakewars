@@ -55,7 +55,7 @@ export default function NavBar() {
   const { wallets } = useWallets();
   const path = usePathname();
   const { roomId } = useOnlineGameStore();
-  const { isMuted, toggleMute } = useSound();
+  const { isMuted, toggleMute, playButtonClick } = useSound();
   const [menuOpen, setMenuOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -187,6 +187,7 @@ export default function NavBar() {
             <button
               onClick={(e) => {
                 e.stopPropagation();
+                playButtonClick();
                 setMenuOpen(!menuOpen);
               }}
               className="p-2 text-white hover:bg-gray-800 rounded-lg transition-colors"
@@ -209,7 +210,10 @@ export default function NavBar() {
                       <Link
                         key={link.href}
                         href={link.href}
-                        onClick={() => setMenuOpen(false)}
+                        onClick={() => {
+                          playButtonClick();
+                          setMenuOpen(false);
+                        }}
                         className={`flex items-center gap-3 px-4 py-3 font-medium transition-all ${
                           isActive(link.href)
                             ? 'bg-purple-600 text-white'
@@ -234,6 +238,7 @@ export default function NavBar() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
+                              playButtonClick();
                               setMenuOpen(false); // Close dropdown first
                               setTimeout(() => {
                                 setProfileOpen(true); // Open profile after dropdown closes
@@ -259,7 +264,10 @@ export default function NavBar() {
                               {formatAddress(walletAddress)}
                             </div>
                             <button
-                              onClick={copyAddress}
+                              onClick={() => {
+                                playButtonClick();
+                                copyAddress();
+                              }}
                               className="flex-shrink-0 p-1 text-gray-400 hover:text-white transition-colors"
                               title="Copy address"
                             >
@@ -275,6 +283,7 @@ export default function NavBar() {
                         {/* Disconnect Button */}
                         <button
                           onClick={() => {
+                            playButtonClick();
                             logout();
                             setMenuOpen(false);
                           }}
@@ -289,6 +298,7 @@ export default function NavBar() {
                         {/* Connect Wallet Button */}
                         <button
                           onClick={() => {
+                            playButtonClick();
                             login();
                             setMenuOpen(false);
                           }}
