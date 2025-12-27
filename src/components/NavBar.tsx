@@ -6,10 +6,14 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import UserProfile from './UserProfile'
 import SearchDialog from './SearchDialog'
-import { usePrivy, useWallets } from '@privy-io/react-auth'
+import { usePrivy, useWallets, useSendTransaction } from '@privy-io/react-auth'
 import useOnlineGameStore from '@/store/useOnlineGame'
 import { toast } from 'react-toastify'
 import { useSound } from '@/contexts/SoundContext'
+import { encodeFunctionData } from 'viem'
+import { STAKEWARS_ABI } from '@/lib/abi'
+import { STAKEWARS_CONTRACT_ADDRESS } from '@/lib/contractaddr'
+import { getChakraBalance } from '@/lib/contractUtils'
 import {
   Home,
   Gamepad2,
@@ -53,12 +57,15 @@ const navigationLinks: NavLink[] = [
 export default function NavBar() {
   const { ready, authenticated, login, logout } = usePrivy();
   const { wallets } = useWallets();
+  const { sendTransaction } = useSendTransaction();
   const path = usePathname();
   const { roomId } = useOnlineGameStore();
   const { isMuted, toggleMute, playButtonClick } = useSound();
   const [menuOpen, setMenuOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [chakraBalance, setChakraBalance] = useState<number | null>(null);
+  const [isMintingChakra, setIsMintingChakra] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Check if wallet is connected
@@ -115,6 +122,75 @@ export default function NavBar() {
     return `${addr.slice(0, 8)}...${addr.slice(-8)}`;
   };
 
+  // Fetch CHAKRA balance
+  const fetchChakraBalance = async () => {
+    if (!walletAddress) {
+      setChakraBalance(null);
+      return;
+    }
+
+    try {
+      const balance = await getChakraBalance(walletAddress as `0x${string}`);
+      setChakraBalance(balance);
+    } catch (error) {
+      console.error("Error fetching CHAKRA balance:", error);
+      setChakraBalance(0);
+    }
+  };
+
+  // Mint starter CHAKRA
+  const handleMintChakra = async () => {
+    if (!walletAddress || !wallets[0]) {
+      toast.error("Wallet not connected!");
+      return;
+    }
+
+    setIsMintingChakra(true);
+
+    try {
+      // Encode the mintChakra function call
+      const data = encodeFunctionData({
+        abi: STAKEWARS_ABI,
+        functionName: "mintChakra",
+        args: [walletAddress as `0x${string}`],
+      });
+
+      // Send transaction using Privy
+      const { hash } = await sendTransaction(
+        {
+          to: STAKEWARS_CONTRACT_ADDRESS as `0x${string}`,
+          data: data,
+        },
+        {
+          address: wallets[0].address,
+        }
+      );
+
+      toast.success(`Mint transaction sent! Hash: ${hash}`);
+      
+      // Wait a bit for confirmation, then refresh balance
+      setTimeout(async () => {
+        await fetchChakraBalance();
+        toast.success("CHAKRA minted successfully!");
+        setIsMintingChakra(false);
+      }, 3000);
+    } catch (error: any) {
+      console.error("Error minting CHAKRA:", error);
+      toast.error(`Failed to mint CHAKRA: ${error?.message || error}`);
+      setIsMintingChakra(false);
+    }
+  };
+
+  // Fetch CHAKRA balance when wallet connects
+  useEffect(() => {
+    if (ready && authenticated && walletAddress) {
+      fetchChakraBalance();
+    } else {
+      setChakraBalance(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, authenticated, walletAddress]);
+
   return (
     <div className="bg-gray-900/50 backdrop-blur-sm border-b border-purple-500/20 sticky top-0 z-50">
       <div className="flex justify-between items-center py-4 px-5 lg:px-14">
@@ -138,6 +214,39 @@ export default function NavBar() {
 
         {/* Right Side Actions */}
         <div className="flex items-center gap-2">
+          {/* CHAKRA Balance Display - Desktop */}
+          {walletConnected && chakraBalance !== null && (
+            <div className="hidden md:flex items-center gap-2">
+              <div className="flex items-center gap-2 bg-gray-800/50 px-3 py-2 rounded-lg border border-purple-500/30">
+                <img src="/chakra_coin.svg" alt="chakra" className="w-5 h-5" />
+                <span className="text-white font-semibold text-sm">
+                  {chakraBalance.toFixed(2)} CHK
+                </span>
+              </div>
+              <button
+                onClick={async () => {
+                  playButtonClick();
+                  await handleMintChakra();
+                }}
+                disabled={isMintingChakra}
+                className="flex items-center gap-2 px-3 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors font-medium text-sm"
+                title="Mint starter CHAKRA"
+              >
+                {isMintingChakra ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span className="hidden lg:inline">Minting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Droplet className="w-4 h-4" />
+                    <span className="hidden lg:inline">Mint CHAKRA</span>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+
           {/* Mute/Unmute Button */}
           <button
             onClick={toggleMute}
@@ -228,6 +337,45 @@ export default function NavBar() {
                   
                   {/* Separator */}
                   <div className="border-t border-purple-500/20 my-2"></div>
+                  
+                  {/* CHAKRA Balance Section - Mobile */}
+                  {walletConnected && chakraBalance !== null && (
+                    <>
+                      <div className="px-4 py-2">
+                        <div className="text-gray-400 text-xs mb-2">CHAKRA Balance</div>
+                        <div className="flex items-center gap-2 bg-gray-800 px-3 py-2 rounded-lg border border-purple-500/30">
+                          <img src="/chakra_coin.svg" alt="chakra" className="w-5 h-5" />
+                          <span className="text-white font-semibold text-sm flex-1">
+                            {chakraBalance.toFixed(2)} CHK
+                          </span>
+                        </div>
+                      </div>
+                      <div className="px-4 py-2">
+                        <button
+                          onClick={async () => {
+                            playButtonClick();
+                            await handleMintChakra();
+                            setMenuOpen(false);
+                          }}
+                          disabled={isMintingChakra}
+                          className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors font-medium text-sm"
+                        >
+                          {isMintingChakra ? (
+                            <>
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              Minting...
+                            </>
+                          ) : (
+                            <>
+                              <Droplet className="w-4 h-4" />
+                              Mint Starter CHAKRA
+                            </>
+                          )}
+                        </button>
+                      </div>
+                      <div className="border-t border-purple-500/20 my-2"></div>
+                    </>
+                  )}
                   
                   {/* Wallet Section */}
                   <div className="px-4 py-2">

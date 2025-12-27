@@ -11,6 +11,7 @@ import useOnlineGameStore from '@/store/useOnlineGame';
 import { usePathname } from 'next/navigation';
 import { CHARACTERS } from '@/lib/characters';
 import { ShoppingCart } from 'lucide-react';
+import { getChakraBalance } from '@/lib/contractUtils';
 
 export default function Marketplace() {
   const [chakraBalance, setChakraBalance] = useState<number | null>(null);
@@ -38,21 +39,15 @@ export default function Marketplace() {
 
     const fetchResourcesBalance = async () => {
       if (!walletAddress) {
-        toast.error("Please connect wallet to view resources balance.");
-        return
+        setChakraBalance(null);
+        return;
       }
 
       try {
-        const response = await fetch(`/api/get-balance?walletAddress=${walletAddress}`);
-        if (response.ok) {
-          const data = await response.json();
-          setChakraBalance(data.balance || 0);
-        } else {
-          console.error("Failed to fetch balance");
-          setChakraBalance(0);
-        }
+        const balance = await getChakraBalance(walletAddress as `0x${string}`);
+        setChakraBalance(balance);
       } catch (error) {
-        console.error("Error fetching balance:", error);
+        console.error("Error fetching CHAKRA balance:", error);
         setChakraBalance(0);
       }
     }
@@ -221,9 +216,10 @@ export default function Marketplace() {
                   </TabsTrigger>
                 )}
               </div>
-              <div>
-                <span className="text-sm md:text-base">
-                  Balance: {chakraBalance ? chakraBalance : 0} CHK
+              <div className="flex items-center gap-2">
+                <img src="/chakra_coin.svg" alt="chakra" className="w-5 h-5" />
+                <span className="text-sm md:text-base text-white font-semibold">
+                  {chakraBalance !== null ? `${chakraBalance.toFixed(2)} CHK` : 'Loading...'}
                 </span>
               </div>
             </TabsList>
