@@ -45,7 +45,7 @@ export default function OpponentPlayerHealth({ gameState }: {
       </div>
       <div className={`flex flex-col rounded-[6px] relative justify-end items-center w-[63px] lg:w-[85px] h-[97px] lg:h-[130px] p-4 overflow-hidden outline-1 outline-[#E8E8E8] outline-offset-[6px] shadow-[0px_4px_7.2px_3px_rgba(191,229,40,0.39)] -mt-[35px] lg:mt-0 lg:mb-[23px]`}>
                 <div className={`absolute -z-0 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full h-full`}>
-                  <img className={`border-5 border-black h-full w-full rounded-[6px]`} src={`/characters/${opponentPlayer?.character?.id}.png`} alt={opponentPlayer?.character?.nickname}/>
+                  <img className={`border-5 border-black h-full w-full rounded-[6px]`} src={`/custom-assets/characters/${opponentPlayer?.character?.id}.png`} alt={opponentPlayer?.character?.nickname}/>
                 </div>
         </div>
     </div>

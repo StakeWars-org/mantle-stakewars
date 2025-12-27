@@ -35,7 +35,7 @@ const PlayerHealth: React.FC<PlayerHealthProps> = ({ gameState }) => {
           >
             <img
               className={`border-5 border-black h-full w-full rounded-[6px]`}
-              src={`/characters/${currentPlayer?.character?.id}.png`}
+              src={`/custom-assets/characters/${currentPlayer?.character?.id}.png`}
               alt={currentPlayer?.character?.nickname}
             />
           </div>

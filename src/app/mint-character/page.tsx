@@ -238,7 +238,7 @@ export default function MintCharacter() {
                     className="w-full h-full"
                   >
                     <img
-                      src={`/characters/${characterAbility.id}.png`}
+                      src={`/custom-assets/characters/${characterAbility.id}.png`}
                       alt={characterAbility.id}
                       className="w-full h-full object-cover"
                     />
@@ -321,7 +321,7 @@ export default function MintCharacter() {
                     <div className="flex items-center gap-4 mb-4">
                       <div className="w-24 h-24 bg-[#1a1a1a] border-4 border-black rounded-md flex items-center justify-center overflow-hidden flex-shrink-0">
                         <img
-                          src={`/characters/${character.id}.png`}
+                          src={`/custom-assets/characters/${character.id}.png`}
                           alt={character.nickname}
                           className="w-full h-full object-cover"
                         />

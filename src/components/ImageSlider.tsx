@@ -19,7 +19,7 @@ export default function ImageSlider() {
       <AnimatePresence mode="wait">
         <motion.img
           key={CHARACTERS[index].id}
-          src={`/characters/${CHARACTERS[index].id}.png`}
+          src={`/custom-assets/characters/${CHARACTERS[index].id}.png`}
           alt={`${CHARACTERS[index].nickname}-image`}
           className="w-full h-full object-cover"
           initial={{ scale: 0.95 }}

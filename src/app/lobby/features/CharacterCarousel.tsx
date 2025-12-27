@@ -218,7 +218,7 @@ export default function CharacterCarousel({
                     transition={{ type: "spring", stiffness: 300, damping: 30 }}
                   >
                     <img
-                      src={`/characters/${character.id}.png`}
+                      src={`/custom-assets/characters/${character.id}.png`}
                       alt={character.nickname}
                       className="rounded-xl w-full h-full object-contain"
                     />

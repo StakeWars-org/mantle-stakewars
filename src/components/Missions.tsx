@@ -261,7 +261,7 @@ useEffect(() => {
             {character && (
               <div className="flex flex-col sm:flex-row gap-5 items-start sm:items-center">
                 <img
-                  src={`/characters/${character.id}.png`}
+                  src={`/custom-assets/characters/${character.id}.png`}
                   className="size-20  sm:size-25 border-3 border-black rounded-full"
                   alt={character.nickname}
                 />
