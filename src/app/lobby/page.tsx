@@ -2,13 +2,14 @@
 
 import React, { useState, useEffect, Suspense } from "react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { CHARACTERS, Character } from "@/lib/characters";
+import { Character } from "@/lib/characters";
 import CharacterCarousel from "./features/CharacterCarousel";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 import { MoonLoader } from "react-spinners";
 import { Sword } from "lucide-react";
+import { getCharactersOwnedByUser } from "@/lib/contractUtils";
 
 export default function Lobby() {
   const { ready, authenticated } = usePrivy();
@@ -19,34 +20,17 @@ export default function Lobby() {
   const router = useRouter();
   const [characterAbilities, setCharacterAbilities] = useState<Character[]>([]);
 
-  const normalize = (str: string) => str.toLowerCase().replace(/\s+/g, "_");
-
-  function getCharacterId(attributes: Record<string, string>) {
-    return `${normalize(attributes.Village)}-${normalize(attributes.Chakra)}`;
-  }
-
   const fetchCharacters = async () => {
     if (!walletAddress) return;
     
     try {
-      // Fetch owned characters via API
-      const response = await fetch(`/api/get-owned-characters?walletAddress=${walletAddress}`);
-      if (response.ok) {
-        const data = await response.json();
-        const characterIds = data.characterIds || [];
-        
-        // Match with CHARACTERS data
-        const matchedAbilities = characterIds
-          .map((id: string) => {
-            const foundCharacter = CHARACTERS.find((char) => char.id === id);
-            return foundCharacter;
-          })
-          .filter(Boolean) as Character[];
-
-        setCharacterAbilities(matchedAbilities);
-      }
+      // Fetch owned characters directly from contract
+      const ownedCharacters = await getCharactersOwnedByUser(walletAddress as `0x${string}`);
+      setCharacterAbilities(ownedCharacters);
     } catch (error) {
-      toast.error(`Error fetching characters ${error}`);
+      console.error("Error fetching characters:", error);
+      toast.error(`Error fetching characters: ${error instanceof Error ? error.message : "Unknown error"}`);
+      setCharacterAbilities([]);
     }
   };
 

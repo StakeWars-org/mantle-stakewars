@@ -2,17 +2,23 @@
 
 import CircleCarousel from "@/components/CircleCarousel";
 import ImageSlider from "@/components/ImageSlider";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { usePrivy, useWallets, useSendTransaction } from "@privy-io/react-auth";
 import React, { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import { Button } from "@/components/ui/button";
 import { Character, CHARACTERS } from "@/lib/characters";
 import { AnimatePresence, motion } from "framer-motion";
 import { useRouter } from "next/navigation";
+import { encodeFunctionData } from "viem";
+import { STAKEWARS_ABI } from "@/lib/abi";
+import { STAKEWARS_CONTRACT_ADDRESS } from "@/lib/contractaddr";
+import { getContractCharacterId, getCharacterIdFromContractId } from "@/lib/characterMapping";
+import { getCharactersOwnedByUser } from "@/lib/contractUtils";
 
 export default function MintCharacter() {
   const { ready, authenticated } = usePrivy();
   const { wallets } = useWallets();
+  const { sendTransaction } = useSendTransaction();
   
   // Get wallet address from Privy
   const walletAddress = wallets[0]?.address || '';
@@ -44,8 +50,13 @@ export default function MintCharacter() {
 
   useEffect(() => {
     const fetchCharacters = async () => {
-      const characters = await findCharacters();
-      setCharacterLengthBeforeMint(characters.length);
+      try {
+        const characters = await getCharactersOwnedByUser(walletAddress as `0x${string}`);
+        setCharacterLengthBeforeMint(characters.length);
+      } catch (error) {
+        console.error("Error fetching characters:", error);
+        setCharacterLengthBeforeMint(0);
+      }
     };
 
     if (ready && authenticated && walletAddress) {
@@ -80,102 +91,96 @@ export default function MintCharacter() {
 
 
 
-  const findCharacters = async (): Promise<any[]> => {
-    try {
-      if (!walletAddress) {
-        toast.error("Wallet not connected!");
-        return [];
-      }
-
-      if (newCharacterModelAddress === null) {
-        return [];
-      }
-
-      // Fetch characters via API
-      const response = await fetch(`/api/get-owned-characters?walletAddress=${walletAddress}`);
-      if (response.ok) {
-        const data = await response.json();
-        return data.characters || [];
-      }
-      return [];
-    } catch (error) {
-      toast.error(`Error finding characters ${error}`);
-      return [];
-    }
-  };
 
   const fetchUserCharacters = async () => {
     if (!walletAddress) return;
     try {
-      // Fetch owned characters via API
-      const response = await fetch(`/api/get-owned-characters?walletAddress=${walletAddress}`);
-      if (response.ok) {
-        const data = await response.json();
-        const characterIds = data.characterIds || [];
-        
-        // Match with CHARACTERS data
-        const matchedAbilities = characterIds
-          .map((id: string) => {
-            const foundCharacter = CHARACTERS.find((char) => char.id === id);
-            return foundCharacter;
-          })
-          .filter(Boolean) as Character[];
-
-        setCharacterAbilities(matchedAbilities);
-      }
+      // Fetch owned characters directly from contract
+      const ownedCharacters = await getCharactersOwnedByUser(walletAddress as `0x${string}`);
+      setCharacterAbilities(ownedCharacters);
     } catch (error) {
-      toast.error(`Error fetching characters ${error}`);
+      console.error("Error fetching characters:", error);
+      toast.error(`Error fetching characters: ${error instanceof Error ? error.message : "Unknown error"}`);
+      setCharacterAbilities([]);
     }
   };
 
   const mintCharacter = async () => {
+    if (!walletAddress) {
+      toast.error("Wallet not connected!");
+      return;
+    }
+
+    if (!wallets[0]) {
+      toast.error("No wallet available!");
+      return;
+    }
+
     setIsMinting(true);
 
     try {
-      if (!walletAddress) {
-        toast.error("Wallet not connected!");
+      // Randomly select a character ID from 1-20 
+      const randomContractId = Math.floor(Math.random() * 20) + 1; // 1-20
+      
+      // Get the character ID string from contract ID
+      const characterIdString = getCharacterIdFromContractId(randomContractId);
+      
+      if (!characterIdString) {
+        toast.error("Invalid character ID");
+        setIsMinting(false);
         return;
       }
 
-      const mintResponse = await fetch("/api/mint-character", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          walletAddress: walletAddress,
-        }),
+      // Find the character object
+      const selectedCharacter = CHARACTERS.find((char) => char.id === characterIdString);
+      
+      if (!selectedCharacter) {
+        toast.error("Character not found");
+        setIsMinting(false);
+        return;
+      }
+
+      // Store the selected character info for later display
+      setCharacterId(characterIdString);
+      setCharacterAbility(selectedCharacter);
+
+      // Encode the function data
+      const data = encodeFunctionData({
+        abi: STAKEWARS_ABI,
+        functionName: "mintCharacter",
+        args: [walletAddress as `0x${string}`, BigInt(randomContractId)],
       });
 
-      if (!mintResponse.ok) {
-        const errorData = await mintResponse.json();
-        toast.error(errorData.error || "Failed to create mint transaction");
-        return;
-      }
+      // Send transaction using Privy
+      const { hash } = await sendTransaction(
+        {
+          to: STAKEWARS_CONTRACT_ADDRESS as `0x${string}`,
+          data: data,
+        },
+        {
+          address: wallets[0].address, // Specify the wallet to use
+        }
+      );
 
-      const mintData = await mintResponse.json();
+      toast.success(`Transaction sent! Hash: ${hash}`);
       
-      setCharacterId(mintData.characterId);
-      setNewCharacterModelAddress(mintData.treeAddress);
-
-      if (mintData.transactionResult && mintData.transactionResult.status === "Success") {
+      // Wait a bit for transaction to be confirmed, then refresh
+      setTimeout(async () => {
+        await fetchUserCharacters();
+        const characters = await getCharactersOwnedByUser(walletAddress as `0x${string}`);
+        setCharacterLengthAfterMint(characters.length);
+        if (characters.length > 0) {
+          const lastCharacter = characters[characters.length - 1];
+          setNewCharacter(lastCharacter);
+        }
         toast.success("Character minted successfully!");
         setMintSuccessful(true);
+        setIsMinting(false);
+      }, 3000); // Wait 3 seconds for confirmation
 
-        const characters = await findCharacters();
-        setCharacterLengthAfterMint(characters.length);
-
-        const lastCharacter = characters[characters.length - 1];
-        setNewCharacter(lastCharacter);
-        
-        // Also refresh the user's character list
-        await fetchUserCharacters();
-      } else {
-        toast.error("Minting failed. Please try again.");
-      }
-    } catch (error) {
-      toast.error(`Something went wrong during minting. ${error}`);
-    } finally {
+    } catch (error: any) {
+      console.error("Error initiating mint:", error);
+      toast.error(`Something went wrong during minting: ${error?.message || error}`);
       setIsMinting(false);
     }
   };
@@ -319,7 +324,7 @@ export default function MintCharacter() {
                     
                     {/* Character Image and Info */}
                     <div className="flex items-center gap-4 mb-4">
-                      <div className="w-24 h-24 bg-[#1a1a1a] border-4 border-black rounded-md flex items-center justify-center overflow-hidden flex-shrink-0">
+                      <div className="w-24 h-24 bg-[#1a1a1a] border-4 border-black rounded-md flex items-center justify-center overflow-hidden shrink-0">
                         <img
                           src={`/custom-assets/characters/${character.id}.png`}
                           alt={character.nickname}
