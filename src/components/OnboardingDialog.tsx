@@ -13,7 +13,7 @@ export default function OnboardingDialog() {
   const { ready, authenticated, user } = usePrivy();
   const { wallets } = useWallets();
   const { address } = useAccount();
-  const { data: balanceData } = useBalance({
+  const { data: balanceData, refetch: refetchBalance } = useBalance({
     address: address,
   });
   const router = useRouter();
@@ -33,7 +33,7 @@ export default function OnboardingDialog() {
   const totalSteps = 3;
   const isOnboardingComplete = hasProfile && hasBalance && hasCharacter;
 
-  const checkUserStatus = useCallback(async () => {
+  const checkUserStatus = useCallback(async (forceRefresh = false) => {
     if (!walletAddress || !authenticated) {
       setIsOpen(false);
       return;
@@ -56,6 +56,21 @@ export default function OnboardingDialog() {
 
     setChecking(true);
 
+    // If force refresh, refetch balance data and use the result directly
+    let freshBalanceData = balanceData;
+    if (forceRefresh && refetchBalance) {
+      try {
+        console.log('Force refreshing balance data...');
+        const result = await refetchBalance();
+        freshBalanceData = result.data || balanceData;
+        console.log('Balance data refetched:', freshBalanceData);
+      } catch (error) {
+        console.error('Error refetching balance:', error);
+        // Fall back to existing balanceData on error
+        freshBalanceData = balanceData;
+      }
+    }
+
     try {
       // Check if onboarding is permanently complete for THIS wallet
       // BUT we still need to verify balance on every load (balance can become 0)
@@ -77,18 +92,21 @@ export default function OnboardingDialog() {
 
       // Check native token balance (MNT) using Privy/wagmi balance data
       // ALWAYS check actual balance on every page load (don't trust sessionStorage)
+      // Use freshBalanceData if we just refetched, otherwise use balanceData
       let hasTokenBalance = false;
       let balanceValue = 0;
       
       // Check if balanceData is available and valid
-      if (balanceData !== undefined && balanceData !== null) {
-        // balanceData.formatted is already in human-readable format (e.g., "0.5")
+      // Use freshBalanceData if we refetched, otherwise use balanceData
+      const currentBalanceData = freshBalanceData || balanceData;
+      if (currentBalanceData !== undefined && currentBalanceData !== null) {
+        // currentBalanceData.formatted is already in human-readable format (e.g., "0.5")
         // Check both formatted and value to be more robust
-        if (balanceData.formatted !== undefined && balanceData.formatted !== null) {
-          balanceValue = parseFloat(balanceData.formatted) || 0;
-        } else if (balanceData.value !== undefined && balanceData.value !== null) {
+        if (currentBalanceData.formatted !== undefined && currentBalanceData.formatted !== null) {
+          balanceValue = parseFloat(currentBalanceData.formatted) || 0;
+        } else if (currentBalanceData.value !== undefined && currentBalanceData.value !== null) {
           // Fallback: convert from wei if formatted is not available
-          balanceValue = Number(balanceData.value) / 1e18;
+          balanceValue = Number(currentBalanceData.value) / 1e18;
         }
         
         hasTokenBalance = balanceValue > 0;
@@ -97,7 +115,7 @@ export default function OnboardingDialog() {
         if (hasTokenBalance) {
           sessionStorage.setItem(step2CompleteKey, 'true');
           sessionStorage.setItem(`onboarding-balance-${walletAddress}`, balanceValue.toString());
-          console.log(`Step 2 complete: Balance ${balanceValue} ${balanceData?.symbol || 'MNT'}`);
+          console.log(`Step 2 complete: Balance ${balanceValue} ${currentBalanceData?.symbol || 'MNT'}`);
         } else {
           // Balance is zero - mark step 2 as incomplete
           sessionStorage.removeItem(step2CompleteKey);
@@ -124,7 +142,7 @@ export default function OnboardingDialog() {
       }
       
       // Log the user's Mantle token balance
-      console.log(`User's Mantle Token Balance: ${balanceValue} ${balanceData?.symbol || 'MNT'}`);
+      console.log(`User's Mantle Token Balance: ${balanceValue} ${currentBalanceData?.symbol || 'MNT'}`);
       
       setHasBalance(hasTokenBalance);
       setTokenBalance(balanceValue);
@@ -132,40 +150,49 @@ export default function OnboardingDialog() {
       // Check if user has characters directly from contract (same as lobby page)
       let userHasCharacter = false;
       
-      // Always try to check for characters first (regardless of balance - read-only call)
-      // Only fall back to cached status if the check fails
-      try {
-        // Add timeout to prevent hanging - use Promise.race with proper typing
-        const characterCheckPromise = getCharactersOwnedByUser(walletAddress as `0x${string}`);
-        const timeoutPromise = new Promise<Awaited<ReturnType<typeof getCharactersOwnedByUser>>>((_, reject) => 
-          setTimeout(() => reject(new Error('Character check timeout')), 10000)
-        );
-        
-        const ownedCharacters = await Promise.race([characterCheckPromise, timeoutPromise]);
-        userHasCharacter = ownedCharacters.length > 0;
-        
-        // Update sessionStorage based on actual check result
-        if (userHasCharacter) {
-          sessionStorage.setItem(step3CompleteKey, 'true');
-          console.log(`Step 3: Found ${ownedCharacters.length} character(s) - marked complete`);
-        } else {
-          // No characters found - mark as incomplete
-          sessionStorage.removeItem(step3CompleteKey);
-          console.log(`Step 3: No characters found - marked incomplete`);
+      // If force refresh, ignore cached status and always check fresh
+      // Otherwise, use cached status if available to avoid unnecessary calls
+      if (forceRefresh || !step3Complete) {
+        // Always try to check for characters (regardless of balance - read-only call)
+        try {
+          console.log('Fetching characters from contract...');
+          // Add timeout to prevent hanging - use Promise.race with proper typing
+          const characterCheckPromise = getCharactersOwnedByUser(walletAddress as `0x${string}`);
+          const timeoutPromise = new Promise<Awaited<ReturnType<typeof getCharactersOwnedByUser>>>((_, reject) => 
+            setTimeout(() => reject(new Error('Character check timeout')), 10000)
+          );
+          
+          const ownedCharacters = await Promise.race([characterCheckPromise, timeoutPromise]);
+          userHasCharacter = ownedCharacters.length > 0;
+          
+          // Update sessionStorage based on actual check result
+          if (userHasCharacter) {
+            sessionStorage.setItem(step3CompleteKey, 'true');
+            console.log(`Step 3: Found ${ownedCharacters.length} character(s) - marked complete`);
+          } else {
+            // No characters found - mark as incomplete
+            sessionStorage.removeItem(step3CompleteKey);
+            console.log(`Step 3: No characters found - marked incomplete`);
+          }
+        } catch (error) {
+          console.error("Error fetching characters:", error);
+          // If check fails and we're forcing refresh, don't use cache
+          if (forceRefresh) {
+            userHasCharacter = false;
+            console.log(`Step 3: Force refresh failed - marked incomplete`);
+          } else if (step3Complete) {
+            // If not forcing refresh, trust cached status on error
+            userHasCharacter = true;
+            console.log(`Step 3: Check failed, but using cached completion status`);
+          } else {
+            userHasCharacter = false;
+            console.log(`Step 3: Check failed and no cached completion found`);
+          }
         }
-      } catch (error) {
-        console.error("Error fetching characters:", error);
-        // If check fails, trust the cached completion status if it exists
-        // This prevents false negatives when network/contract calls fail temporarily
-        if (step3Complete) {
-          userHasCharacter = true;
-          console.log(`Step 3: Check failed, but using cached completion status`);
-        } else {
-          // No cached status and check failed - assume incomplete
-          // But don't remove step3Complete if it was set before (might be temporary network issue)
-          userHasCharacter = false;
-          console.log(`Step 3: Check failed and no cached completion found`);
-        }
+      } else {
+        // Use cached completion status if available and not forcing refresh
+        userHasCharacter = true;
+        console.log(`Step 3: Using cached completion status (character exists)`);
       }
       
       setHasCharacter(userHasCharacter);
@@ -207,7 +234,7 @@ export default function OnboardingDialog() {
     } finally {
       setChecking(false);
     }
-  }, [walletAddress, authenticated, pathname, user, balanceData]);
+  }, [walletAddress, authenticated, pathname, user, balanceData, refetchBalance]);
 
   // Mark when on task pages and check completion when leaving
   useEffect(() => {
@@ -494,7 +521,7 @@ export default function OnboardingDialog() {
         {/* Refresh Button */}
         <div className="mt-4 pt-4 border-t border-gray-700">
           <Button
-            onClick={checkUserStatus}
+            onClick={() => checkUserStatus(true)}
             disabled={checking}
             variant="outline"
             className="w-full flex items-center justify-center gap-2"
