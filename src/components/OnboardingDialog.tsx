@@ -23,6 +23,8 @@ export default function OnboardingDialog() {
   const [hasBalance, setHasBalance] = useState(false);
   const [hasCharacter, setHasCharacter] = useState(false);
   const [checking, setChecking] = useState(false);
+  const [checkingBalance, setCheckingBalance] = useState(false);
+  const [checkingCharacter, setCheckingCharacter] = useState(false);
   const [tokenBalance, setTokenBalance] = useState(0);
 
   // Get wallet address from Privy wallets or wagmi account
@@ -33,208 +35,242 @@ export default function OnboardingDialog() {
   const totalSteps = 3;
   const isOnboardingComplete = hasProfile && hasBalance && hasCharacter;
 
-  const checkUserStatus = useCallback(async (forceRefresh = false) => {
+  // Separate function to check balance
+  const checkBalance = useCallback(async (forceRefresh = false) => {
     if (!walletAddress || !authenticated) {
-      setIsOpen(false);
       return;
     }
 
-    // Don't show on task pages (where user is actually doing the tasks)
-    // But allow it to show after leaving those pages
-    // Note: Faucet is now external (hackquest.io), so we only check for mint-character
-    if (pathname === '/mint-character') {
-      setIsOpen(false);
-      return;
-    }
-    
-    // Mark that we left a task page (for showing dialog when returning)
-    const wasOnTaskPage = sessionStorage.getItem('was-on-task-page');
-    if (wasOnTaskPage) {
-      sessionStorage.removeItem('was-on-task-page');
-      // Force check immediately when returning from task page
-    }
-
-    setChecking(true);
-
-    // If force refresh, refetch balance data and use the result directly
-    let freshBalanceData = balanceData;
-    if (forceRefresh && refetchBalance) {
-      try {
-        console.log('Force refreshing balance data...');
-        const result = await refetchBalance();
-        freshBalanceData = result.data || balanceData;
-        console.log('Balance data refetched:', freshBalanceData);
-      } catch (error) {
-        console.error('Error refetching balance:', error);
-        // Fall back to existing balanceData on error
-        freshBalanceData = balanceData;
-      }
-    }
+    setCheckingBalance(true);
 
     try {
-      // Check if onboarding is permanently complete for THIS wallet
-      // BUT we still need to verify balance on every load (balance can become 0)
-      const onboardingCompleteKey = `onboarding-complete-${walletAddress}`;
-      const onboardingComplete = sessionStorage.getItem(onboardingCompleteKey);
-      
-      // Note: We don't early return here because we need to check balance every time
-      // Step 3 (character) can be trusted, but Step 2 (balance) must be checked fresh
-
-      // Check individual step completions from sessionStorage
       const step2CompleteKey = `onboarding-step2-${walletAddress}`;
-      const step3CompleteKey = `onboarding-step3-${walletAddress}`;
-      const step2Complete = sessionStorage.getItem(step2CompleteKey) === 'true';
-      const step3Complete = sessionStorage.getItem(step3CompleteKey) === 'true';
+      
+      // If force refresh, refetch balance data
+      let currentBalanceData = balanceData;
+      if (forceRefresh && refetchBalance) {
+        try {
+          console.log('Force refreshing balance data...');
+          const result = await refetchBalance();
+          currentBalanceData = result.data || balanceData;
+          console.log('Balance data refetched:', currentBalanceData);
+        } catch (error) {
+          console.error('Error refetching balance:', error);
+          currentBalanceData = balanceData;
+        }
+      }
 
-      // Check if user has profile (using Privy user data)
-      const userHasProfile = !!(user && user.id);
-      setHasProfile(userHasProfile);
-
-      // Check native token balance (MNT) using Privy/wagmi balance data
-      // ALWAYS check actual balance on every page load (don't trust sessionStorage)
-      // Use freshBalanceData if we just refetched, otherwise use balanceData
       let hasTokenBalance = false;
       let balanceValue = 0;
       
-      // Check if balanceData is available and valid
-      // Use freshBalanceData if we refetched, otherwise use balanceData
-      const currentBalanceData = freshBalanceData || balanceData;
       if (currentBalanceData !== undefined && currentBalanceData !== null) {
-        // currentBalanceData.formatted is already in human-readable format (e.g., "0.5")
-        // Check both formatted and value to be more robust
         if (currentBalanceData.formatted !== undefined && currentBalanceData.formatted !== null) {
           balanceValue = parseFloat(currentBalanceData.formatted) || 0;
         } else if (currentBalanceData.value !== undefined && currentBalanceData.value !== null) {
-          // Fallback: convert from wei if formatted is not available
           balanceValue = Number(currentBalanceData.value) / 1e18;
         }
         
         hasTokenBalance = balanceValue > 0;
         
-        // Update sessionStorage based on current balance status
         if (hasTokenBalance) {
           sessionStorage.setItem(step2CompleteKey, 'true');
           sessionStorage.setItem(`onboarding-balance-${walletAddress}`, balanceValue.toString());
           console.log(`Step 2 complete: Balance ${balanceValue} ${currentBalanceData?.symbol || 'MNT'}`);
         } else {
-          // Balance is zero - mark step 2 as incomplete
           sessionStorage.removeItem(step2CompleteKey);
           sessionStorage.removeItem(`onboarding-balance-${walletAddress}`);
           console.log(`Step 2 incomplete: Balance is zero`);
         }
       } else {
-        // If balanceData is not loaded yet (undefined/null), use cached value if available
-        // This handles the case when wagmi is still loading on page change
         const cachedBalance = sessionStorage.getItem(`onboarding-balance-${walletAddress}`);
         const wasStep2Complete = sessionStorage.getItem(step2CompleteKey) === 'true';
         
         if (cachedBalance !== null && wasStep2Complete) {
-          // Use cached value temporarily while balanceData loads
           balanceValue = parseFloat(cachedBalance) || 0;
           hasTokenBalance = balanceValue > 0;
           console.log(`Step 2: Using cached balance ${balanceValue} (balanceData still loading)`);
         } else {
-          // No cached value or step 2 was never complete - assume no balance
           hasTokenBalance = false;
           balanceValue = 0;
           console.log(`Step 2: No balance data available and no cache found`);
         }
       }
       
-      // Log the user's Mantle token balance
-      console.log(`User's Mantle Token Balance: ${balanceValue} ${currentBalanceData?.symbol || 'MNT'}`);
-      
       setHasBalance(hasTokenBalance);
       setTokenBalance(balanceValue);
+    } catch (error) {
+      console.error("Error checking balance:", error);
+      const step2CompleteKey = `onboarding-step2-${walletAddress}`;
+      const step2Complete = sessionStorage.getItem(step2CompleteKey) === 'true';
+      setHasBalance(step2Complete);
+    } finally {
+      setCheckingBalance(false);
+    }
+  }, [walletAddress, authenticated, balanceData, refetchBalance]);
 
-      // Check if user has characters directly from contract (same as lobby page)
-      let userHasCharacter = false;
+  // Separate function to check characters
+  const checkCharacter = useCallback(async (forceRefresh = false) => {
+    if (!walletAddress || !authenticated) {
+      return;
+    }
+
+    setCheckingCharacter(true);
+
+    try {
+      const step3CompleteKey = `onboarding-step3-${walletAddress}`;
+      const step3Complete = sessionStorage.getItem(step3CompleteKey) === 'true';
       
-      // If force refresh, ignore cached status and always check fresh
-      // Otherwise, use cached status if available to avoid unnecessary calls
+      // If force refresh, always check fresh. Otherwise, check if not already complete
       if (forceRefresh || !step3Complete) {
-        // Always try to check for characters (regardless of balance - read-only call)
         try {
           console.log('Fetching characters from contract...');
-          // Add timeout to prevent hanging - use Promise.race with proper typing
           const characterCheckPromise = getCharactersOwnedByUser(walletAddress as `0x${string}`);
           const timeoutPromise = new Promise<Awaited<ReturnType<typeof getCharactersOwnedByUser>>>((_, reject) => 
             setTimeout(() => reject(new Error('Character check timeout')), 10000)
           );
           
           const ownedCharacters = await Promise.race([characterCheckPromise, timeoutPromise]);
-          userHasCharacter = ownedCharacters.length > 0;
+          const userHasCharacter = ownedCharacters.length > 0;
           
-          // Update sessionStorage based on actual check result
           if (userHasCharacter) {
             sessionStorage.setItem(step3CompleteKey, 'true');
             console.log(`Step 3: Found ${ownedCharacters.length} character(s) - marked complete`);
+            setHasCharacter(true);
           } else {
-            // No characters found - mark as incomplete
             sessionStorage.removeItem(step3CompleteKey);
             console.log(`Step 3: No characters found - marked incomplete`);
+            setHasCharacter(false);
           }
         } catch (error) {
           console.error("Error fetching characters:", error);
-          // If check fails and we're forcing refresh, don't use cache
           if (forceRefresh) {
-            userHasCharacter = false;
+            setHasCharacter(false);
             console.log(`Step 3: Force refresh failed - marked incomplete`);
           } else if (step3Complete) {
-            // If not forcing refresh, trust cached status on error
-            userHasCharacter = true;
+            setHasCharacter(true);
             console.log(`Step 3: Check failed, but using cached completion status`);
           } else {
-            userHasCharacter = false;
+            setHasCharacter(false);
             console.log(`Step 3: Check failed and no cached completion found`);
           }
         }
       } else {
-        // Use cached completion status if available and not forcing refresh
-        userHasCharacter = true;
+        setHasCharacter(true);
         console.log(`Step 3: Using cached completion status (character exists)`);
       }
-      
-      setHasCharacter(userHasCharacter);
-
-      // Mark as complete if user has profile, balance, and character
-      // Note: Balance is checked fresh every time, so if balance becomes 0, onboarding will be incomplete
-      if (userHasProfile && hasTokenBalance && userHasCharacter) {
-        sessionStorage.setItem(onboardingCompleteKey, 'true');
-        setIsOpen(false);
-        return;
-      } else {
-        // If any step is incomplete, remove the complete flag
-        // This ensures popup shows again if balance becomes 0
-        sessionStorage.removeItem(onboardingCompleteKey);
-      }
-
-      // Show dialog if user is missing profile OR balance OR character
-      const shouldShow = !userHasProfile || !hasTokenBalance || !userHasCharacter;
-      setIsOpen(shouldShow);
-
     } catch (error) {
-      console.error("Error in checkUserStatus:", error);
-      // On error, check if steps were previously marked complete
+      console.error("Error checking character:", error);
+      const step3CompleteKey = `onboarding-step3-${walletAddress}`;
+      const step3Complete = sessionStorage.getItem(step3CompleteKey) === 'true';
+      setHasCharacter(step3Complete);
+    } finally {
+      setCheckingCharacter(false);
+    }
+  }, [walletAddress, authenticated]);
+
+  // Combined function for refresh button
+  const checkUserStatus = useCallback(async (forceRefresh = false) => {
+    if (!walletAddress || !authenticated) {
+      setIsOpen(false);
+      return;
+    }
+
+    if (pathname === '/mint-character') {
+      setIsOpen(false);
+      return;
+    }
+    
+    setChecking(true);
+    
+    // Check profile first (synchronous)
+    const userHasProfile = !!(user && user.id);
+    setHasProfile(userHasProfile);
+
+    // Run balance and character checks in parallel (independently)
+    await Promise.all([
+      checkBalance(forceRefresh),
+      checkCharacter(forceRefresh)
+    ]);
+
+    // After both checks complete, determine if dialog should show
+    const step2CompleteKey = `onboarding-step2-${walletAddress}`;
+    const step3CompleteKey = `onboarding-step3-${walletAddress}`;
+    const step2Complete = sessionStorage.getItem(step2CompleteKey) === 'true';
+    const step3Complete = sessionStorage.getItem(step3CompleteKey) === 'true';
+    
+    const onboardingCompleteKey = `onboarding-complete-${walletAddress}`;
+    
+    if (userHasProfile && step2Complete && step3Complete) {
+      sessionStorage.setItem(onboardingCompleteKey, 'true');
+      setIsOpen(false);
+    } else {
+      sessionStorage.removeItem(onboardingCompleteKey);
+      const shouldShow = !userHasProfile || !step2Complete || !step3Complete;
+      setIsOpen(shouldShow);
+    }
+    
+    setChecking(false);
+  }, [walletAddress, authenticated, pathname, user, checkBalance, checkCharacter]);
+
+  // Separate useEffect for balance check - runs when balanceData changes
+  useEffect(() => {
+    if (ready && authenticated && walletAddress && balanceData !== undefined) {
+      checkBalance(false);
+    }
+  }, [walletAddress, authenticated, ready, balanceData, checkBalance]);
+
+  // Separate useEffect for character check - runs independently
+  useEffect(() => {
+    if (ready && authenticated && walletAddress) {
+      // Small delay to ensure wallet is fully initialized
+      const timer = setTimeout(() => {
+        checkCharacter(false);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [walletAddress, authenticated, ready, checkCharacter]);
+
+  // Check profile and determine dialog visibility
+  useEffect(() => {
+    if (ready && authenticated && walletAddress) {
+      // Clean up old generic onboarding key (migration)
+      const oldKey = sessionStorage.getItem('onboarding-complete');
+      if (oldKey) {
+        sessionStorage.removeItem('onboarding-complete');
+      }
+      
+      // Check profile (synchronous)
+      const userHasProfile = !!(user && user.id);
+      setHasProfile(userHasProfile);
+      
+      // Get step completion status
       const step2CompleteKey = `onboarding-step2-${walletAddress}`;
       const step3CompleteKey = `onboarding-step3-${walletAddress}`;
+      const onboardingCompleteKey = `onboarding-complete-${walletAddress}`;
+      
       const step2Complete = sessionStorage.getItem(step2CompleteKey) === 'true';
       const step3Complete = sessionStorage.getItem(step3CompleteKey) === 'true';
       
-      // Use previous completion status on error
-      setHasBalance(step2Complete);
-      setHasCharacter(step3Complete);
-      
-      // Only show dialog if we're not sure about completion
-      if (!step2Complete || !step3Complete) {
-        setIsOpen(true);
-      } else {
+      // Don't show on task pages
+      if (pathname === '/mint-character') {
         setIsOpen(false);
+        return;
       }
-    } finally {
-      setChecking(false);
+      
+      // Determine if dialog should show
+      if (userHasProfile && step2Complete && step3Complete) {
+        sessionStorage.setItem(onboardingCompleteKey, 'true');
+        setIsOpen(false);
+      } else {
+        sessionStorage.removeItem(onboardingCompleteKey);
+        const shouldShow = !userHasProfile || !step2Complete || !step3Complete;
+        setIsOpen(shouldShow);
+      }
+    } else {
+      setIsOpen(false);
+      setHasProfile(false);
     }
-  }, [walletAddress, authenticated, pathname, user, balanceData, refetchBalance]);
+  }, [walletAddress, ready, authenticated, user, pathname, hasBalance, hasCharacter]);
 
   // Mark when on task pages and check completion when leaving
   useEffect(() => {
@@ -245,53 +281,27 @@ export default function OnboardingDialog() {
       // When leaving task pages, check if steps were completed
       const wasOnTaskPage = sessionStorage.getItem('was-on-task-page');
       if (wasOnTaskPage && walletAddress && authenticated) {
-        // Small delay to ensure balance/character data has updated
+        sessionStorage.removeItem('was-on-task-page');
+        // Small delay to ensure balance/character data has updated, then check both independently
         setTimeout(() => {
-          checkUserStatus();
+          checkBalance(true);
+          checkCharacter(true);
         }, 2000);
       }
     }
-  }, [pathname, walletAddress, authenticated, checkUserStatus]);
+  }, [pathname, walletAddress, authenticated, checkBalance, checkCharacter]);
 
-  // Check status immediately when wallet connects
+  // Periodic refresh - runs balance and character checks independently
   useEffect(() => {
     if (ready && authenticated && walletAddress) {
-      // Clean up old generic onboarding key (migration)
-      const oldKey = sessionStorage.getItem('onboarding-complete');
-      if (oldKey) {
-        sessionStorage.removeItem('onboarding-complete');
-      }
-      
-      // Reset onboarding state for new wallet
-      setIsOpen(false);
-      setHasProfile(false);
-      setHasBalance(false);
-      setHasCharacter(false);
-      
-      // Immediate check for new wallet (delay to ensure wallet is fully initialized)
-      const timer = setTimeout(() => {
-        checkUserStatus();
-      }, 500);
-      
-      return () => clearTimeout(timer);
-    } else {
-      setIsOpen(false);
-      setHasProfile(false);
-      setHasBalance(false);
-      setHasCharacter(false);
-    }
-  }, [walletAddress, ready, authenticated]);
-
-  // Periodic check and page change detection
-  useEffect(() => {
-    if (ready && authenticated && walletAddress) {
-      checkUserStatus();
-      
-      // Re-check every 60 seconds to catch updates (longer interval to avoid disrupting user actions)
-      const interval = setInterval(checkUserStatus, 60000);
+      // Re-check every 60 seconds
+      const interval = setInterval(() => {
+        checkBalance(false);
+        checkCharacter(false);
+      }, 60000);
       return () => clearInterval(interval);
     }
-  }, [pathname, user, checkUserStatus, ready, authenticated, walletAddress, balanceData]);
+  }, [walletAddress, authenticated, ready, checkBalance, checkCharacter]);
 
   if (!ready || !authenticated) return null;
 
@@ -522,7 +532,7 @@ export default function OnboardingDialog() {
         <div className="mt-4 pt-4 border-t border-gray-700">
           <Button
             onClick={() => checkUserStatus(true)}
-            disabled={checking}
+            disabled={checking || checkingBalance || checkingCharacter}
             variant="outline"
             className="w-full flex items-center justify-center gap-2"
           >
