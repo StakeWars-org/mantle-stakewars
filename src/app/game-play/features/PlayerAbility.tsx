@@ -41,7 +41,7 @@ export default function PlayerAbility({ gameState, userId }: {
     
     // Prevent clicking if defense is already in inventory
     if (ability.type === 'defense' && ability.defenseType) {
-      const defenseAlreadyInInventory = currentPlayer?.defenseInventory?.[ability.defenseType] > 0;
+      const defenseAlreadyInInventory = (currentPlayer?.defenseInventory?.[ability.defenseType] || 0) > 0;
       if (defenseAlreadyInInventory) {
         return; // Don't proceed if defense already exists
       }
