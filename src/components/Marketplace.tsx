@@ -8,7 +8,7 @@ import { toast } from 'react-toastify';
 import { Button } from './ui/button';
 import { buffs } from '@/lib/buffs';
 import useOnlineGameStore from '@/store/useOnlineGame';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { CHARACTERS } from '@/lib/characters';
 import { ShoppingCart } from 'lucide-react';
 import { 
@@ -89,11 +89,12 @@ export default function Marketplace() {
   }>>([]);
   const [buffRemainingUses, setBuffRemainingUses] = useState<Record<string, number>>({});
   
-  const { authenticated } = usePrivy();
-  const { wallets } = useWallets();
+    const { authenticated } = usePrivy();
+    const { wallets } = useWallets();
   const { sendTransaction } = useSendTransaction();
-  const { addBuffToPlayer, gameState, roomId } = useOnlineGameStore();
-  const pathname = usePathname();
+    const { addBuffToPlayer, gameState, roomId } = useOnlineGameStore();
+    const pathname = usePathname();
+    const router = useRouter();
 
     // Get wallet address from Privy wallets
     const walletAddress = wallets[0]?.address || '';
@@ -336,7 +337,7 @@ export default function Marketplace() {
     }
 
     const purchaseCharacter = async (characterId: string, characterName: string) => {
-      if (!walletAddress) {
+      if (!walletAddress || !wallets[0]) {
         toast.error("Wallet not connected!");
         return;
       }
@@ -347,46 +348,98 @@ export default function Marketplace() {
         return;
       }
 
+      // Get contract character ID
+      const contractCharacterId = getContractCharacterIdFromString(characterId);
+      if (!contractCharacterId) {
+        toast.error("Invalid character ID!");
+        return;
+      }
+
       setPurchasingCharacterId(characterId);
+      setPurchaseStep(null);
 
       try {
-        toast.info("💸 Processing purchase...");
+        // Check if contract is approved to spend CHAKRA tokens
+        const isApproved = await checkChakraApproval(walletAddress as `0x${string}`);
         
-        // Purchase character through API (handles payment and minting on backend)
-        const purchaseResponse = await fetch("/api/purchase-character", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            walletAddress: walletAddress,
-            characterId: characterId,
-            characterName: characterName,
-          }),
+        if (!isApproved) {
+          // Step 1: Approve the contract to spend CHAKRA tokens
+          setPurchaseStep('approving');
+          toast.info("Step 1/2: Please approve the contract to spend CHAKRA tokens...");
+          
+          const approveData = encodeFunctionData({
+            abi: STAKEWARS_ABI,
+            functionName: "setApprovalForAll",
+            args: [STAKEWARS_CONTRACT_ADDRESS as `0x${string}`, true],
+          });
+
+          const approveResult = await sendTransaction(
+            {
+              to: STAKEWARS_CONTRACT_ADDRESS as `0x${string}`,
+              data: approveData,
+            },
+            {
+              address: wallets[0].address,
+            }
+          );
+
+          toast.success(`Step 1/2 Complete: Approval transaction sent! Hash: ${approveResult.hash}`);
+          
+          // Wait a moment for the approval transaction to be processed
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+
+        // Step 2: Purchase the character
+        setPurchaseStep('purchasing');
+        toast.info("Step 2/2: Please confirm the purchase transaction...");
+        
+        // Format 1000 CHAKRA to 18 decimals
+        const CHAKRA_COST = BigInt(1000 * 10 ** 18);
+        
+        // Encode the mintCharacterWithChakra function call
+        const purchaseData = encodeFunctionData({
+          abi: STAKEWARS_ABI,
+          functionName: "mintCharacterWithChakra",
+          args: [BigInt(contractCharacterId), CHAKRA_COST],
         });
 
-        if (!purchaseResponse.ok) {
-          const errorData = await purchaseResponse.json();
-          toast.error(errorData.error || "Purchase failed");
-          return;
-        }
+        // Send transaction using Privy
+        const { hash } = await sendTransaction(
+          {
+            to: STAKEWARS_CONTRACT_ADDRESS as `0x${string}`,
+            data: purchaseData,
+          },
+          {
+            address: wallets[0].address,
+          }
+        );
 
-        const purchaseData = await purchaseResponse.json();
+        toast.success(`Step 2/2 Complete: Purchase transaction sent! Hash: ${hash}`);
         
-        if (purchaseData.success) {
-          toast.success(`🎉 ${characterName} is now yours!`);
+        // Wait for confirmation, then refresh
+        setTimeout(async () => {
           await fetchResourcesBalance(); // Refresh balance
           await fetchOwnedCharacters(); // Refresh owned characters
+          toast.success(`🎉 ${characterName} is now yours!`);
+          
+          // Reset purchase state and close dialog after successful purchase
+          setPurchasingCharacterId(null);
+          setPurchaseStep(null);
           setIsOpen(false);
-        } else {
-          toast.error(purchaseData.error || "Purchase failed");
-        }
+          
+          // Reload lobby page if we're on it, otherwise navigate to it
+          if (pathname === '/lobby') {
+            router.refresh();
+          } else {
+            router.push('/lobby');
+          }
+        }, 3000);
 
-      } catch (error) {
+      } catch (error: any) {
         console.error("Purchase error:", error);
-        toast.error(`Purchase failed: ${error instanceof Error ? error.message : String(error)}`);
-      } finally {
+        toast.error(`Purchase failed: ${error?.message || error}`);
         setPurchasingCharacterId(null);
+        setPurchaseStep(null);
       }
     }
 
@@ -417,8 +470,8 @@ export default function Marketplace() {
       <Dialog
         open={isOpen}
         onOpenChange={(open) => {
-          // Prevent closing dialog during purchase process
-          if (!open && (purchasingBuffId !== null || purchaseStep !== null)) {
+          // Prevent closing dialog during purchase process (for both powerups and characters)
+          if (!open && (purchasingBuffId !== null || purchasingCharacterId !== null || purchaseStep !== null)) {
             return;
           }
           setIsOpen(open);
@@ -433,6 +486,7 @@ export default function Marketplace() {
           // Reset purchase state when closing
           if (!open) {
             setPurchasingBuffId(null);
+            setPurchasingCharacterId(null);
             setPurchaseStep(null);
           }
         }}
@@ -592,33 +646,33 @@ export default function Marketplace() {
                   });
 
                   return (
-                    <div
-                      key={index}
+                  <div
+                    key={index}
                       className={`rounded-[10px] flex flex-col items-center justify-between p-5 bg-[#00000040] max-w-52 border-2 transition-all ${
                         isVillageBuff 
                           ? 'border-green-500/50' 
                           : 'border-gray-600/30 opacity-50'
                       }`}
-                    >
-                      <div>
+                  >
+                    <div>
                         <div className="bg-[#040404] rounded-[10px] flex justify-center items-center w-full h-[100px]">
-                          <img
-                            width={100}
-                            height={100}
+                        <img
+                          width={100}
+                          height={100}
                             src={getPowerUpImage(powerup.name, index)}
                             alt={powerup.name}
                             className="w-full h-full object-contain"
-                          />
-                        </div>
+                        />
+                      </div>
 
                         <h2 className="font-bold text-sm text-white mb-2 mt-4">
-                          {powerup.name}
+                        {powerup.name}
                           {!isVillageBuff && (
                             <span className="text-xs text-gray-400 block mt-1">
                               (Not available for your village)
                             </span>
                           )}
-                        </h2>
+                      </h2>
                         <p className="text-sm text-white mb-2">
                           Increases attack power by {contractEffect} for your next{" "}
                           {contractRemainingTurns} attack plays
@@ -628,9 +682,9 @@ export default function Marketplace() {
                             Remaining uses: {remainingUses}
                           </p>
                         )}
-                      </div>
+                    </div>
 
-                      <Button
+                    <Button
                         disabled={!canPurchase || isPurchasing}
                         onClick={() => isVillageBuff && buffId > 0 && playerVillage && purchasePowerUp(buffId, playerVillage)}
                         className="flex cursor-pointer w-full bg-[#2F2B24] hover:bg-[#3F3F2F] items-center border-[0.6px] rounded-lg border-[#FFFFFF] gap-2 disabled:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50"
@@ -652,19 +706,19 @@ export default function Marketplace() {
                           </>
                         ) : (
                           <>
-                            <img
-                              src="/chakra_coin.svg"
-                              alt="chakra"
-                              width={20}
-                              height={20}
-                            />
+                      <img
+                        src="/chakra_coin.svg"
+                        alt="chakra"
+                        width={20}
+                        height={20}
+                      />
                             <span className="text-sm">
                               {contractPrice.toFixed(2)} CHK
                             </span>
                           </>
                         )}
-                      </Button>
-                    </div>
+                    </Button>
+                  </div>
                   );
                 })}
               </TabsContent>
@@ -679,8 +733,10 @@ export default function Marketplace() {
                 {CHARACTERS.map((character, index) => {
                   const isOwned = ownedCharacterIds.includes(character.id);
                   const isPurchasing = purchasingCharacterId === character.id;
+                  const isApproving = isPurchasing && purchaseStep === 'approving';
+                  const isPurchasingStep = isPurchasing && purchaseStep === 'purchasing';
                   const hasEnoughChakra = ((chakraBalance as number) ?? 0) >= CHARACTER_PRICE;
-                  const canPurchase = !isOwned && purchasingCharacterId === null && hasEnoughChakra;
+                  const canPurchase = !isOwned && purchasingCharacterId === null && purchaseStep === null && hasEnoughChakra;
                   
                   return (
                     <div
@@ -731,18 +787,20 @@ export default function Marketplace() {
 
                       <div className="w-full space-y-2">
                         <Button
-                          disabled={!canPurchase}
+                          disabled={!canPurchase || purchaseStep !== null}
                           onClick={() => purchaseCharacter(character.id, character.nickname)}
                           className="flex cursor-pointer w-full bg-purple-600 hover:bg-purple-700 items-center border-[0.6px] rounded-lg border-[#FFFFFF] gap-2 justify-center disabled:bg-gray-600 disabled:cursor-not-allowed"
                         >
-                          {isPurchasing ? (
-                            <span className="text-sm flex items-center gap-2">
-                              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                              </svg>
-                              Processing...
-                            </span>
+                          {isApproving ? (
+                            <>
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              <span className="text-sm">Step 1/2: Approving...</span>
+                            </>
+                          ) : isPurchasingStep ? (
+                            <>
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              <span className="text-sm">Step 2/2: Purchasing...</span>
+                            </>
                           ) : isOwned ? (
                             <span className="text-sm">Already Owned</span>
                           ) : (
