@@ -11,7 +11,18 @@ import useOnlineGameStore from '@/store/useOnlineGame';
 import { usePathname } from 'next/navigation';
 import { CHARACTERS } from '@/lib/characters';
 import { ShoppingCart } from 'lucide-react';
-import { getChakraBalance } from '@/lib/contractUtils';
+import { 
+  getChakraBalance, 
+  getContractCharacterIdFromString,
+  getVillageFromCharacterId,
+  getBuffInfo,
+  getBuffStatus,
+  checkChakraApproval
+} from '@/lib/contractUtils';
+import { useSendTransaction } from '@privy-io/react-auth';
+import { encodeFunctionData } from 'viem';
+import { STAKEWARS_ABI } from '@/lib/abi';
+import { STAKEWARS_CONTRACT_ADDRESS } from '@/lib/contractaddr';
 
 // Map buff names to their corresponding image files
 const getPowerUpImage = (powerUpName: string, index: number): string => {
@@ -52,29 +63,73 @@ const getPowerUpImage = (powerUpName: string, index: number): string => {
   return `/custom-assets/power ups/1000243810.png`;
 };
 
+// Map effect level to buffId (effect 5=1, 10=2, 15=3, 20=4, 25=5)
+const EFFECT_TO_BUFF_ID: Record<number, number> = {
+  5: 1,
+  10: 2,
+  15: 3,
+  20: 4,
+  25: 5,
+};
+
 export default function Marketplace() {
   const [chakraBalance, setChakraBalance] = useState<number | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [ownedCharacterIds, setOwnedCharacterIds] = useState<string[]>([]);
   const [purchasingCharacterId, setPurchasingCharacterId] = useState<string | null>(null);
-    const { authenticated } = usePrivy();
-    const { wallets } = useWallets();
-    const { addBuffToPlayer, gameState, roomId } = useOnlineGameStore();
-    const pathname = usePathname();
+  const [purchasingBuffId, setPurchasingBuffId] = useState<number | null>(null);
+  const [purchaseStep, setPurchaseStep] = useState<'approving' | 'purchasing' | null>(null);
+  const [villageBuffs, setVillageBuffs] = useState<Array<{
+    buffId: number;
+    effect: number;
+    price: number;
+    remainingTurns: number;
+    name: string;
+    village: number;
+  }>>([]);
+  const [buffRemainingUses, setBuffRemainingUses] = useState<Record<string, number>>({});
+  
+  const { authenticated } = usePrivy();
+  const { wallets } = useWallets();
+  const { sendTransaction } = useSendTransaction();
+  const { addBuffToPlayer, gameState, roomId } = useOnlineGameStore();
+  const pathname = usePathname();
 
     // Get wallet address from Privy wallets
     const walletAddress = wallets[0]?.address || '';
 
+    // Determine current player - check both in-progress games and games with characters set
     const currentPlayer = (() => {
-      if (gameState?.gameStatus !== 'inProgress') return null;
-
-      const isPlayer1 = gameState.player1?.id === walletAddress;
-      const isPlayer2 = gameState.player2?.id === walletAddress;
+      // First try to find player by wallet address in either player1 or player2
+      const isPlayer1 = gameState?.player1?.id === walletAddress;
+      const isPlayer2 = gameState?.player2?.id === walletAddress;
 
       if (isPlayer1) return 'player1';
       if (isPlayer2) return 'player2';
       return null;
     })();
+
+    // Get current player's character
+    const currentPlayerCharacter = currentPlayer 
+      ? gameState?.[currentPlayer]?.character 
+      : null;
+
+    // Get contract character ID and village
+    const contractCharacterId = currentPlayerCharacter
+      ? getContractCharacterIdFromString(currentPlayerCharacter.id)
+      : null;
+    
+    // Get contract character ID and village number (for contract calls)
+    const playerVillage = contractCharacterId 
+      ? getVillageFromCharacterId(contractCharacterId)
+      : null;
+    
+    // Get village string directly from character object and normalize to match buffs format
+    // Character.village is "Hidden Leaf", "Hidden Sand", etc.
+    // Buffs use "hidden_leaf", "hidden_sand", etc.
+    const playerVillageString = currentPlayerCharacter?.village
+      ? currentPlayerCharacter.village.toLowerCase().replace(/\s+/g, '_')
+      : null;
 
     const fetchResourcesBalance = async () => {
       if (!walletAddress) {
@@ -109,41 +164,174 @@ export default function Marketplace() {
       }
     }
 
-    const purchasePowerUp = async (powerUp: { name: string; effect: number; remainingTurns: number; price: number; village: string; }) => {
-        if (!walletAddress) {
+    // Fetch village buffs from contract
+    const fetchVillageBuffs = async () => {
+      if (!playerVillage) return;
+
+      try {
+        // Fetch all 5 buffs for the village (buffId 1-5)
+        const buffPromises = [];
+        for (let buffId = 1; buffId <= 5; buffId++) {
+          buffPromises.push(
+            getBuffInfo(playerVillage, buffId).then(buff => ({
+              buffId,
+              ...buff,
+              village: playerVillage,
+            }))
+          );
+        }
+        const buffs = await Promise.all(buffPromises);
+        setVillageBuffs(buffs);
+      } catch (error) {
+        console.error("Error fetching village buffs:", error);
+        setVillageBuffs([]);
+      }
+    };
+
+    // Fetch remaining uses for all buffs
+    const fetchBuffRemainingUses = async () => {
+      if (!walletAddress || !contractCharacterId) return;
+
+      try {
+        const usesPromises = [];
+        for (let buffId = 1; buffId <= 5; buffId++) {
+          usesPromises.push(
+            getBuffStatus(walletAddress as `0x${string}`, contractCharacterId, buffId).then(
+              uses => ({ buffId, uses })
+            )
+          );
+        }
+        const results = await Promise.all(usesPromises);
+        const usesMap: Record<string, number> = {};
+        results.forEach(({ buffId, uses }) => {
+          usesMap[`${contractCharacterId}-${buffId}`] = uses;
+        });
+        setBuffRemainingUses(usesMap);
+      } catch (error) {
+        console.error("Error fetching buff remaining uses:", error);
+      }
+    };
+
+    const purchasePowerUp = async (buffId: number, village: number) => {
+        if (!walletAddress || !contractCharacterId || !wallets[0]) {
           toast.error("Wallet not connected!");
           return;
         }
 
+        setPurchasingBuffId(buffId);
+        setPurchaseStep(null);
+
         try {
-           const burnResponse = await fetch("/api/burn-resource", {
-             method: "POST",
-             headers: {
-               "Content-Type": "application/json",
-             },
-             body: JSON.stringify({
-               amount: powerUp.price,
-               walletAddress: walletAddress
-             }),
-           });
-
-          if (!burnResponse.ok) {
-            const errorData = await burnResponse.json();
-            toast.error(errorData.error || "Failed to burn resources");
-            return;
-          }
-
-          const burnData = await burnResponse.json();
+          // Check if contract is approved to spend CHAKRA tokens
+          const isApproved = await checkChakraApproval(walletAddress as `0x${string}`);
           
-          if (burnData.transactionResult && burnData.transactionResult.status === "Success") {
-            addBuffToPlayer(currentPlayer as 'player1' | 'player2', powerUp.name, powerUp.effect, powerUp.remainingTurns)
-            toast.success(`Successfully bought ${powerUp.name}. Power up now equipped!`)
-            setIsOpen(false);
-          } else {
-            toast.error("Transaction failed");
+          if (!isApproved) {
+            // Step 1: Approve the contract to spend CHAKRA tokens
+            setPurchaseStep('approving');
+            toast.info("Step 1/2: Please approve the contract to spend CHAKRA tokens...");
+            
+            const approveData = encodeFunctionData({
+              abi: STAKEWARS_ABI,
+              functionName: "setApprovalForAll",
+              args: [STAKEWARS_CONTRACT_ADDRESS as `0x${string}`, true],
+            });
+
+            const approveResult = await sendTransaction(
+              {
+                to: STAKEWARS_CONTRACT_ADDRESS as `0x${string}`,
+                data: approveData,
+              },
+              {
+                address: wallets[0].address,
+              }
+            );
+
+            toast.success(`Step 1/2 Complete: Approval transaction sent! Hash: ${approveResult.hash}`);
+            
+            // Wait a moment for the approval transaction to be processed
+            await new Promise(resolve => setTimeout(resolve, 2000));
           }
-        } catch (error) {
-          toast.error(`Failed to purchase power up ${error}`);
+
+          // Step 2: Purchase the buff
+          setPurchaseStep('purchasing');
+          toast.info("Step 2/2: Please confirm the purchase transaction...");
+          
+          const purchaseData = encodeFunctionData({
+            abi: STAKEWARS_ABI,
+            functionName: "purchaseBuff",
+            args: [BigInt(contractCharacterId), BigInt(buffId)],
+          });
+
+          // Send purchase transaction using Privy
+          const { hash } = await sendTransaction(
+            {
+              to: STAKEWARS_CONTRACT_ADDRESS as `0x${string}`,
+              data: purchaseData,
+            },
+            {
+              address: wallets[0].address,
+            }
+          );
+
+          toast.success(`Step 2/2 Complete: Purchase transaction sent! Hash: ${hash}`);
+          
+          // Wait for confirmation, then refresh
+          setTimeout(async () => {
+            await fetchBuffRemainingUses();
+            await fetchResourcesBalance();
+            await fetchVillageBuffs(); // Refresh village buffs to get latest data
+            
+            // Get buff info from contract or use fallback from local powerup data
+            const buffInfo = villageBuffs.find(b => b.buffId === buffId);
+            const powerupData = buffs.find(p => {
+              return EFFECT_TO_BUFF_ID[p.effect] === buffId && p.village === playerVillageString;
+            });
+            
+            // Powerups are now stored on-chain and will be automatically loaded
+            // when the character is selected in a game.
+            const finalBuffInfo = buffInfo || powerupData;
+            
+            // If user is in a current game, add the powerup to their active buffs immediately
+            // Re-check game state at this point to ensure we have the latest values
+            const currentGameState = useOnlineGameStore.getState().gameState;
+            const currentRoomId = useOnlineGameStore.getState().roomId;
+            const currentPathname = pathname;
+            const isCurrentlyInGame = currentPathname === `/game-play/${currentRoomId}`;
+            
+            const currentPlayerInGame = (() => {
+              const isPlayer1 = currentGameState?.player1?.id === walletAddress;
+              const isPlayer2 = currentGameState?.player2?.id === walletAddress;
+              if (isPlayer1) return 'player1';
+              if (isPlayer2) return 'player2';
+              return null;
+            })();
+            
+            if (isCurrentlyInGame && currentPlayerInGame && currentRoomId && finalBuffInfo) {
+              try {
+                await addBuffToPlayer(
+                  currentPlayerInGame,
+                  finalBuffInfo.name,
+                  finalBuffInfo.effect,
+                  finalBuffInfo.remainingTurns
+                );
+              } catch (error) {
+                console.error("Error adding buff to current game:", error);
+                // Continue even if adding to current game fails - it's still stored on-chain
+              }
+            }
+            
+            toast.success(`Successfully purchased ${finalBuffInfo?.name || 'buff'}! Powerup is now available for all games with this character.`);
+            
+            // Reset purchase state and close dialog after successful purchase
+            setPurchasingBuffId(null);
+            setPurchaseStep(null);
+            setIsOpen(false);
+          }, 3000);
+        } catch (error: any) {
+          console.error("Error purchasing buff:", error);
+          toast.error(`Failed to purchase buff: ${error?.message || error}`);
+          setPurchasingBuffId(null);
+          setPurchaseStep(null);
         }
     }
 
@@ -206,15 +394,46 @@ export default function Marketplace() {
   const isInGameplay = pathname === `/game-play/${roomId}`;
   const CHARACTER_PRICE = 1000;
 
+  // Debug logging for character detection
+  console.log('[Marketplace Debug] Character Detection:', {
+    gameStatus: gameState?.gameStatus,
+    isInGameplay,
+    walletAddress,
+    currentPlayer,
+    player1Id: gameState?.player1?.id,
+    player2Id: gameState?.player2?.id,
+    currentPlayerCharacter: currentPlayerCharacter ? {
+      id: currentPlayerCharacter.id,
+      nickname: currentPlayerCharacter.nickname,
+      village: currentPlayerCharacter.village
+    } : null,
+    gameStateKeys: gameState ? Object.keys(gameState) : 'no gameState',
+    roomId,
+    pathname
+  });
+
   return (
     <div className={`fixed ${isInGameplay ? 'bottom-[137px] left-5' : 'bottom-8 left-8'}`}>
       <Dialog
         open={isOpen}
         onOpenChange={(open) => {
+          // Prevent closing dialog during purchase process
+          if (!open && (purchasingBuffId !== null || purchaseStep !== null)) {
+            return;
+          }
           setIsOpen(open);
           if (open && walletAddress) {
             fetchResourcesBalance();
             fetchOwnedCharacters();
+            if (isInGameplay && playerVillage) {
+              fetchVillageBuffs();
+              fetchBuffRemainingUses();
+            }
+          }
+          // Reset purchase state when closing
+          if (!open) {
+            setPurchasingBuffId(null);
+            setPurchaseStep(null);
           }
         }}
       >
@@ -269,46 +488,185 @@ export default function Marketplace() {
                 className="flex pt-10 gap-4 flex-wrap overflow-y-auto max-h-[60vh] justify-center"
                 value="power-ups"
               >
-                {buffs.map((powerup, index) => (
-                  <div
-                    key={index}
-                    className="rounded-[10px] flex flex-col items-center justify-between p-5 bg-[#00000040] max-w-52"
-                  >
-                    <div>
-                      <div className="bg-[#040404] rounded-[10px] flex justify-center items-center w-full h-[100px]">
-                        <img
-                          width={100}
-                          height={100}
-                          src={getPowerUpImage(powerup.name, index)}
-                          alt={powerup.name}
-                          className="w-full h-full object-contain"
-                        />
+                {/* Show all buffs, but only enable village-appropriate ones */}
+                {buffs.map((powerup, index) => {
+                  // Check if buff belongs to player's village
+                  const isVillageBuff = playerVillageString === powerup.village;
+                  
+                  // Map effect level to buffId
+                  const buffId = isVillageBuff ? (EFFECT_TO_BUFF_ID[powerup.effect] || 0) : 0;
+                  
+                  // Find matching contract buff by buffId (more reliable than name matching)
+                  const contractBuff = isVillageBuff && buffId > 0
+                    ? villageBuffs.find(b => b.buffId === buffId)
+                    : undefined;
+                  
+                  // Always use contract price if available, otherwise use fallback for display only
+                  // But for purchase check, we MUST have contract price
+                  const contractPrice = contractBuff?.price ?? powerup.price;
+                  const contractEffect = contractBuff?.effect ?? powerup.effect;
+                  const contractRemainingTurns = contractBuff?.remainingTurns ?? powerup.remainingTurns;
+                  
+                  const remainingUses = contractCharacterId && buffId > 0 && isVillageBuff
+                    ? buffRemainingUses[`${contractCharacterId}-${buffId}`] || 0
+                    : 0;
+                  
+                  const isPurchasing = purchasingBuffId === buffId;
+                  const isApproving = isPurchasing && purchaseStep === 'approving';
+                  const isPurchasingStep = isPurchasing && purchaseStep === 'purchasing';
+                  
+                  // Check balance using the same method as navbar (getChakraBalance)
+                  // Only allow purchase if we have contract price data and enough balance
+                  const currentBalance = (chakraBalance as number) ?? 0;
+                  const hasEnoughBalance = currentBalance >= contractPrice;
+                  const hasContractPrice = contractBuff !== undefined && contractBuff.price !== undefined;
+                  
+                  // Break down all conditions for debugging
+                  const conditions = {
+                    isVillageBuff,
+                    hasValidBuffId: buffId > 0,
+                    hasContractPrice,
+                    hasEnoughBalance,
+                    isNotPurchasing: !isPurchasing,
+                    hasContractCharacterId: contractCharacterId !== null,
+                    hasPlayerVillage: playerVillage !== null,
+                  };
+                  
+                  // Allow purchase if it's a village buff, we have contract data, and sufficient balance
+                  const canPurchase = conditions.isVillageBuff && 
+                    conditions.hasValidBuffId &&
+                    conditions.hasContractPrice &&
+                    conditions.hasEnoughBalance &&
+                    conditions.isNotPurchasing &&
+                    conditions.hasContractCharacterId &&
+                    conditions.hasPlayerVillage;
+                    
+                  // Comprehensive debug logging for all powerups
+                  console.log(`[Powerup Debug] ${powerup.name} (${powerup.village}):`, {
+                    // Village check
+                    playerVillageString,
+                    powerupVillage: powerup.village,
+                    isVillageBuff,
+                    
+                    // Buff ID
+                    buffId,
+                    effect: powerup.effect,
+                    
+                    // Contract data
+                    contractBuffFound: contractBuff !== undefined,
+                    contractPriceFromBuff: contractBuff?.price,
+                    fallbackPrice: powerup.price,
+                    displayPrice: contractPrice,
+                    hasContractPrice,
+                    
+                    // Balance
+                    currentBalance,
+                    requiredPrice: contractPrice,
+                    hasEnoughBalance,
+                    balanceDifference: currentBalance - contractPrice,
+                    
+                    // Character/Player data
+                    contractCharacterId,
+                    playerVillage,
+                    hasContractCharacterId: conditions.hasContractCharacterId,
+                    hasPlayerVillage: conditions.hasPlayerVillage,
+                    
+                    // Purchase state
+                    isPurchasing,
+                    
+                    // All conditions
+                    conditions,
+                    
+                    // Final result
+                    canPurchase,
+                    reason: !canPurchase ? (
+                      !conditions.isVillageBuff ? 'NOT IN PLAYER VILLAGE' :
+                      !conditions.hasValidBuffId ? 'INVALID BUFF ID' :
+                      !conditions.hasContractPrice ? 'NO CONTRACT PRICE DATA' :
+                      !conditions.hasEnoughBalance ? `INSUFFICIENT BALANCE (need ${contractPrice.toFixed(2)}, have ${currentBalance.toFixed(2)})` :
+                      !conditions.isNotPurchasing ? 'ALREADY PURCHASING' :
+                      !conditions.hasContractCharacterId ? 'NO CONTRACT CHARACTER ID' :
+                      !conditions.hasPlayerVillage ? 'NO PLAYER VILLAGE' :
+                      'UNKNOWN REASON'
+                    ) : 'CAN PURCHASE'
+                  });
+
+                  return (
+                    <div
+                      key={index}
+                      className={`rounded-[10px] flex flex-col items-center justify-between p-5 bg-[#00000040] max-w-52 border-2 transition-all ${
+                        isVillageBuff 
+                          ? 'border-green-500/50' 
+                          : 'border-gray-600/30 opacity-50'
+                      }`}
+                    >
+                      <div>
+                        <div className="bg-[#040404] rounded-[10px] flex justify-center items-center w-full h-[100px]">
+                          <img
+                            width={100}
+                            height={100}
+                            src={getPowerUpImage(powerup.name, index)}
+                            alt={powerup.name}
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
+
+                        <h2 className="font-bold text-sm text-white mb-2 mt-4">
+                          {powerup.name}
+                          {!isVillageBuff && (
+                            <span className="text-xs text-gray-400 block mt-1">
+                              (Not available for your village)
+                            </span>
+                          )}
+                        </h2>
+                        <p className="text-sm text-white mb-2">
+                          Increases attack power by {contractEffect} for your next{" "}
+                          {contractRemainingTurns} attack plays
+                        </p>
+                        {isVillageBuff && remainingUses > 0 && (
+                          <p className="text-xs text-green-400 mb-2">
+                            Remaining uses: {remainingUses}
+                          </p>
+                        )}
                       </div>
 
-                      <h2 className="font-bold text-sm text-white mb-5 mt-4">
-                        {powerup.name}
-                      </h2>
-                      <p className="text-sm text-white mb-5">
-                        Increases attack power by {powerup.effect} for your next{" "}
-                        {powerup.remainingTurns} attack plays during a match
-                      </p>
+                      <Button
+                        disabled={!canPurchase || isPurchasing}
+                        onClick={() => isVillageBuff && buffId > 0 && playerVillage && purchasePowerUp(buffId, playerVillage)}
+                        className="flex cursor-pointer w-full bg-[#2F2B24] hover:bg-[#3F3F2F] items-center border-[0.6px] rounded-lg border-[#FFFFFF] gap-2 disabled:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {isApproving ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            <span className="text-sm">Step 1/2: Approving...</span>
+                          </>
+                        ) : isPurchasingStep ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            <span className="text-sm">Step 2/2: Purchasing...</span>
+                          </>
+                        ) : isPurchasing ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            <span className="text-sm">Processing...</span>
+                          </>
+                        ) : (
+                          <>
+                            <img
+                              src="/chakra_coin.svg"
+                              alt="chakra"
+                              width={20}
+                              height={20}
+                            />
+                            <span className="text-sm">
+                              {contractPrice.toFixed(2)} CHK
+                            </span>
+                          </>
+                        )}
+                      </Button>
                     </div>
-
-                    <Button
-                      disabled={((chakraBalance as number) ?? 0) < powerup.price}
-                      onClick={() => purchasePowerUp(powerup)}
-                      className="flex cursor-pointer w-full bg-[#2F2B24] items-center border-[0.6px] rounded-lg border-[#FFFFFF] gap-2"
-                    >
-                      <img
-                        src="/chakra_coin.svg"
-                        alt="chakra"
-                        width={20}
-                        height={20}
-                      />
-                      {powerup.price} CHK
-                    </Button>
-                  </div>
-                ))}
+                  );
+                })}
               </TabsContent>
             )}
 
