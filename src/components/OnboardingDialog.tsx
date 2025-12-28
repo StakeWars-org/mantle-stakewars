@@ -41,7 +41,8 @@ export default function OnboardingDialog() {
 
     // Don't show on task pages (where user is actually doing the tasks)
     // But allow it to show after leaving those pages
-    if (pathname === '/faucet' || pathname === '/mint-character') {
+    // Note: Faucet is now external (hackquest.io), so we only check for mint-character
+    if (pathname === '/mint-character') {
       setIsOpen(false);
       return;
     }
@@ -56,25 +57,61 @@ export default function OnboardingDialog() {
     setChecking(true);
 
     try {
+      // Check if onboarding is permanently complete for THIS wallet
+      // BUT we still need to verify balance on every load (balance can become 0)
+      const onboardingCompleteKey = `onboarding-complete-${walletAddress}`;
+      const onboardingComplete = sessionStorage.getItem(onboardingCompleteKey);
+      
+      // Note: We don't early return here because we need to check balance every time
+      // Step 3 (character) can be trusted, but Step 2 (balance) must be checked fresh
+
+      // Check individual step completions from sessionStorage
+      const step2CompleteKey = `onboarding-step2-${walletAddress}`;
+      const step3CompleteKey = `onboarding-step3-${walletAddress}`;
+      const step2Complete = sessionStorage.getItem(step2CompleteKey) === 'true';
+      const step3Complete = sessionStorage.getItem(step3CompleteKey) === 'true';
+
       // Check if user has profile (using Privy user data)
       const userHasProfile = !!(user && user.id);
       setHasProfile(userHasProfile);
 
       // Check native token balance (MNT) using Privy/wagmi balance data
+      // ALWAYS check actual balance on every page load (don't trust sessionStorage)
       let hasTokenBalance = false;
       let balanceValue = 0;
       
-      if (balanceData) {
+      if (balanceData !== undefined && balanceData !== null) {
         // balanceData.formatted is already in human-readable format (e.g., "0.5")
-        balanceValue = parseFloat(balanceData.formatted) || 0;
+        // Check both formatted and value to be more robust
+        if (balanceData.formatted !== undefined) {
+          balanceValue = parseFloat(balanceData.formatted) || 0;
+        } else if (balanceData.value !== undefined) {
+          // Fallback: convert from wei if formatted is not available
+          balanceValue = Number(balanceData.value) / 1e18;
+        }
+        
         hasTokenBalance = balanceValue > 0;
+        
+        // Update sessionStorage based on current balance status
+        if (hasTokenBalance) {
+          sessionStorage.setItem(step2CompleteKey, 'true');
+          sessionStorage.setItem(`onboarding-balance-${walletAddress}`, balanceValue.toString());
+          console.log(`Step 2 complete: Balance ${balanceValue} ${balanceData?.symbol || 'MNT'}`);
+        } else {
+          // Balance is zero - mark step 2 as incomplete
+          sessionStorage.removeItem(step2CompleteKey);
+          sessionStorage.removeItem(`onboarding-balance-${walletAddress}`);
+          console.log(`Step 2 incomplete: Balance is zero`);
+        }
       } else {
-        // Fallback: try to get balance directly using viem if wagmi hook hasn't loaded yet
-        try {
-          // This will be handled by the useBalance hook, so we just wait for it
-          hasTokenBalance = false;
-          balanceValue = 0;
-        } catch {
+        // If balanceData is not loaded yet, check if we have a cached value
+        // But only use it temporarily - we'll re-check when balanceData loads
+        const cachedBalance = sessionStorage.getItem(`onboarding-balance-${walletAddress}`);
+        if (cachedBalance !== null) {
+          balanceValue = parseFloat(cachedBalance) || 0;
+          hasTokenBalance = balanceValue > 0;
+          // Don't trust cached value - will re-check when balanceData loads
+        } else {
           hasTokenBalance = false;
           balanceValue = 0;
         }
@@ -88,49 +125,97 @@ export default function OnboardingDialog() {
 
       // Check if user has characters directly from contract (same as lobby page)
       let userHasCharacter = false;
-      try {
-        const ownedCharacters = await getCharactersOwnedByUser(walletAddress as `0x${string}`);
-        userHasCharacter = ownedCharacters.length > 0;
-      } catch (error) {
-        console.error("Error fetching characters:", error);
-        userHasCharacter = false;
+      
+      // If step 3 was previously marked complete, trust it
+      if (step3Complete) {
+        userHasCharacter = true;
+      } else {
+        // Only check if step 2 is complete (user has balance to make contract calls)
+        if (hasTokenBalance || step2Complete) {
+          try {
+            // Add timeout to prevent hanging - use Promise.race with proper typing
+            const characterCheckPromise = getCharactersOwnedByUser(walletAddress as `0x${string}`);
+            const timeoutPromise = new Promise<Awaited<ReturnType<typeof getCharactersOwnedByUser>>>((_, reject) => 
+              setTimeout(() => reject(new Error('Character check timeout')), 10000)
+            );
+            
+            const ownedCharacters = await Promise.race([characterCheckPromise, timeoutPromise]);
+            userHasCharacter = ownedCharacters.length > 0;
+            
+            // If character is found, mark step 3 as complete permanently
+            if (userHasCharacter) {
+              sessionStorage.setItem(step3CompleteKey, 'true');
+              console.log(`Step 3 marked complete: Found ${ownedCharacters.length} character(s)`);
+            }
+          } catch (error) {
+            console.error("Error fetching characters:", error);
+            // If there's an error but step 3 was previously complete, trust the previous status
+            // Otherwise, don't fail - use previous status if available
+            userHasCharacter = step3Complete;
+          }
+        } else {
+          // Can't check characters without balance, use previous status
+          userHasCharacter = step3Complete;
+        }
       }
+      
       setHasCharacter(userHasCharacter);
 
-      // Check if onboarding is permanently complete for THIS wallet
-      const onboardingCompleteKey = `onboarding-complete-${walletAddress}`;
-      const onboardingComplete = sessionStorage.getItem(onboardingCompleteKey);
-      
       // Mark as complete if user has profile, balance, and character
+      // Note: Balance is checked fresh every time, so if balance becomes 0, onboarding will be incomplete
       if (userHasProfile && hasTokenBalance && userHasCharacter) {
         sessionStorage.setItem(onboardingCompleteKey, 'true');
         setIsOpen(false);
         return;
-      }
-
-      // If already marked complete for this wallet, never show again
-      if (onboardingComplete) {
-        setIsOpen(false);
-        return;
+      } else {
+        // If any step is incomplete, remove the complete flag
+        // This ensures popup shows again if balance becomes 0
+        sessionStorage.removeItem(onboardingCompleteKey);
       }
 
       // Show dialog if user is missing profile OR balance OR character
       const shouldShow = !userHasProfile || !hasTokenBalance || !userHasCharacter;
       setIsOpen(shouldShow);
 
-    } catch {
-      // Silent error handling
+    } catch (error) {
+      console.error("Error in checkUserStatus:", error);
+      // On error, check if steps were previously marked complete
+      const step2CompleteKey = `onboarding-step2-${walletAddress}`;
+      const step3CompleteKey = `onboarding-step3-${walletAddress}`;
+      const step2Complete = sessionStorage.getItem(step2CompleteKey) === 'true';
+      const step3Complete = sessionStorage.getItem(step3CompleteKey) === 'true';
+      
+      // Use previous completion status on error
+      setHasBalance(step2Complete);
+      setHasCharacter(step3Complete);
+      
+      // Only show dialog if we're not sure about completion
+      if (!step2Complete || !step3Complete) {
+        setIsOpen(true);
+      } else {
+        setIsOpen(false);
+      }
     } finally {
       setChecking(false);
     }
   }, [walletAddress, authenticated, pathname, user, balanceData]);
 
-  // Mark when on task pages
+  // Mark when on task pages and check completion when leaving
   useEffect(() => {
-    if (pathname === '/faucet' || pathname === '/mint-character') {
+    // Note: Faucet is now external (hackquest.io), so we only track mint-character
+    if (pathname === '/mint-character') {
       sessionStorage.setItem('was-on-task-page', 'true');
+    } else {
+      // When leaving task pages, check if steps were completed
+      const wasOnTaskPage = sessionStorage.getItem('was-on-task-page');
+      if (wasOnTaskPage && walletAddress && authenticated) {
+        // Small delay to ensure balance/character data has updated
+        setTimeout(() => {
+          checkUserStatus();
+        }, 2000);
+      }
     }
-  }, [pathname]);
+  }, [pathname, walletAddress, authenticated, checkUserStatus]);
 
   // Check status immediately when wallet connects
   useEffect(() => {
@@ -324,7 +409,7 @@ export default function OnboardingDialog() {
                   <Button
                     onClick={() => {
                       setIsOpen(false);
-                      router.push('/faucet');
+                      window.open('https://www.hackquest.io/faucets/5003', '_blank');
                     }}
                     className="w-full bg-blue-600 hover:bg-blue-700 flex items-center justify-center gap-2"
                   >
