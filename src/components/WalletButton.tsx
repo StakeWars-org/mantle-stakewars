@@ -61,7 +61,7 @@ export default function WalletButton({ className = '' }: WalletButtonProps) {
   // Handle disconnect
   const handleDisconnect = () => {
     logout();
-    setIsOpen(false);
+      setIsOpen(false);
   };
 
   // Handle change wallet - logout then login to allow connecting a different wallet
@@ -103,45 +103,45 @@ export default function WalletButton({ className = '' }: WalletButtonProps) {
       {/* Dropdown Menu */}
       {isOpen && (
         <div className="absolute right-0 mt-2 w-64 sm:w-72 bg-gray-900 border border-purple-500/30 rounded-lg shadow-2xl z-50 max-h-[80vh] overflow-auto">
-          {/* Wallet Address */}
-          <div className="p-2 sm:p-3 border-b border-gray-700">
-            <p className="text-gray-400 text-[0.65rem] sm:text-xs mb-1">Connected Wallet</p>
-            <div className="flex items-center gap-2 bg-gray-800 px-2 sm:px-3 py-1.5 sm:py-2 rounded">
-              <span className="text-white text-xs sm:text-sm font-mono flex-1 truncate">
+              {/* Wallet Address */}
+              <div className="p-2 sm:p-3 border-b border-gray-700">
+                <p className="text-gray-400 text-[0.65rem] sm:text-xs mb-1">Connected Wallet</p>
+                <div className="flex items-center gap-2 bg-gray-800 px-2 sm:px-3 py-1.5 sm:py-2 rounded">
+                  <span className="text-white text-xs sm:text-sm font-mono flex-1 truncate">
                 {formatAddress(walletAddress)}
-              </span>
-              <button
-                onClick={copyAddress}
-                className="flex-shrink-0 p-1 text-gray-400 hover:text-white transition-colors"
-                title="Copy address"
-              >
-                {copied ? (
-                  <Check className="w-3 h-3 sm:w-4 sm:h-4 text-green-400" />
-                ) : (
-                  <Copy className="w-3 h-3 sm:w-4 sm:h-4" />
-                )}
-              </button>
-            </div>
-          </div>
+                  </span>
+                  <button
+                    onClick={copyAddress}
+                    className="flex-shrink-0 p-1 text-gray-400 hover:text-white transition-colors"
+                    title="Copy address"
+                  >
+                    {copied ? (
+                      <Check className="w-3 h-3 sm:w-4 sm:h-4 text-green-400" />
+                    ) : (
+                      <Copy className="w-3 h-3 sm:w-4 sm:h-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
 
-          {/* Menu Items */}
-          <div className="py-1">
-            <button
+              {/* Menu Items */}
+              <div className="py-1">
+                <button
               onClick={handleChangeWallet}
-              className="w-full px-3 sm:px-4 py-2 sm:py-3 text-left text-white hover:bg-gray-800 transition-colors flex items-center gap-2 sm:gap-3 text-xs sm:text-sm"
-            >
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 text-left text-white hover:bg-gray-800 transition-colors flex items-center gap-2 sm:gap-3 text-xs sm:text-sm"
+                >
               <Wallet className="w-3 h-3 sm:w-4 sm:h-4" />
-              Change Wallet
-            </button>
-            
-            <button
-              onClick={handleDisconnect}
-              className="w-full px-3 sm:px-4 py-2 sm:py-3 text-left text-red-400 hover:bg-gray-800 transition-colors flex items-center gap-2 sm:gap-3 text-xs sm:text-sm"
-            >
-              <LogOut className="w-3 h-3 sm:w-4 sm:h-4" />
-              Disconnect
-            </button>
-          </div>
+                  Change Wallet
+                </button>
+                
+                <button
+                  onClick={handleDisconnect}
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 text-left text-red-400 hover:bg-gray-800 transition-colors flex items-center gap-2 sm:gap-3 text-xs sm:text-sm"
+                >
+                  <LogOut className="w-3 h-3 sm:w-4 sm:h-4" />
+                  Disconnect
+                </button>
+              </div>
         </div>
       )}
     </div>

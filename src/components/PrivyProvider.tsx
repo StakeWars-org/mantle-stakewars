@@ -48,7 +48,7 @@ export function PrivyProvider({ children }: PrivyProviderProps) {
 
   return (
     <PrivyProviderBase
-      appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID || ""}
+      appId={process.env.PRIVY_APP_ID || ""}
       config={{
         loginMethods: ["email", "wallet", "google", "twitter", "discord"],
         appearance: {

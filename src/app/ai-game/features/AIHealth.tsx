@@ -17,6 +17,8 @@ export interface AIGameState {
     id: string | null;
     character?: Character;
     currentHealth: number;
+    stamina: number;
+    abilityCooldowns: { [abilityId: string]: number };
     defenseInventory: DefenseInventory;
     activeBuffs?: Buff[];
     skippedDefense?: {
@@ -28,6 +30,8 @@ export interface AIGameState {
     id: string | null;
     character?: Character;
     currentHealth: number;
+    stamina: number;
+    abilityCooldowns: { [abilityId: string]: number };
     defenseInventory: DefenseInventory;
     activeBuffs?: Buff[];
     skippedDefense?: {
@@ -41,6 +45,7 @@ export interface AIGameState {
   lastAttack?: {
     ability: Ability;
     attackingPlayer: 'player' | 'ai';
+    actualDamage?: number;
   };
   diceRolls?: {
     [key: string]: number;

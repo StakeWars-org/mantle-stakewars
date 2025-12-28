@@ -64,7 +64,7 @@ export default function UserProfile({ showLabel = false, isOpen: externalIsOpen,
           const statsData = await statsResponse.json();
           setWins(statsData.wins || 0);
           setLosses(statsData.losses || 0);
-        }
+      }
       } catch (error) {
         console.error('Failed to fetch user data:', error);
       }

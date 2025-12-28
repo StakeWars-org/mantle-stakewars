@@ -64,7 +64,7 @@ const UserGameRooms = ({setIsOpen} : GameRoomSearchProps) => {
 
   useEffect(() => {
     if (ready && authenticated && walletAddress) {
-      fetchUserGameRooms();
+    fetchUserGameRooms();
     }
   }, [ready, authenticated, walletAddress]);
 

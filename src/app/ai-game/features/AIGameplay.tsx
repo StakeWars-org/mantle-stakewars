@@ -3,14 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import useAIGameStore from '@/store/useAIGame';
 import { Ability } from '@/lib/characters';
-import AIFirstTurnDiceRoll from './AIFirstTurnDiceRoll';
-import AIDiceRoll from './AIDiceRoll';
 import AIDefenseModal from './AIDefenseModal';
+import AIFirstTurnDiceRoll from './AIFirstTurnDiceRoll';
 import { toast } from 'react-toastify';
 import PlayerHealth from "./PlayerHealth";
 import AIHealth from './AIHealth';
 import AILostMessage from './AILostMessage';
 import AIWonMessage from './AIWonMessage';
+import BattleStoryboard from './BattleStoryboard';
 import { usePrivy, useWallets } from '@privy-io/react-auth';
 import { useRouter } from 'next/navigation';
 
@@ -18,8 +18,6 @@ interface LastAttackDetails {
   ability: Ability | null;
   attackingPlayer: 'player' | 'ai' | null | undefined;
 }
-
-const diceImages = ['/one.png', '/two.png', '/three.png', '/four.png', '/five.png', '/six.png']
 
 export default function AIGameplay() {
   const {
@@ -84,7 +82,8 @@ export default function AIGameplay() {
       setShowDefenseModal(false);
       setShowSkipDefenseButton(false);
 
-      toast(`⚔️ ${gameState.lastAttack.attackingPlayer === 'player' ? 'You' : 'AI'} attacked with ${gameState.lastAttack.ability.name} for ${gameState.lastAttack.ability.value} damage!`);
+      const actualDamage = gameState.lastAttack.actualDamage || gameState.lastAttack.ability.value;
+      toast(`⚔️ ${gameState.lastAttack.attackingPlayer === 'player' ? 'You' : 'AI'} attacked with ${gameState.lastAttack.ability.name} for ${actualDamage} damage!`);
       
       const attackingPlayer = gameState.lastAttack.attackingPlayer;
       const defendingPlayer = attackingPlayer === 'player' ? 'ai' : 'player';
@@ -98,8 +97,9 @@ export default function AIGameplay() {
           setShowDefenseModal(true);
           setShowSkipDefenseButton(true);
         } else {
-          useAIGameStore.getState().skipDefense(defendingPlayer, gameState.lastAttack.ability.value, gameState.lastAttack.ability);
-          toast.warn(`You took -${gameState.lastAttack.ability.value} damage`)
+          const actualDamage = gameState.lastAttack.actualDamage || gameState.lastAttack.ability.value;
+          useAIGameStore.getState().skipDefense(defendingPlayer, actualDamage, gameState.lastAttack.ability);
+          toast.warn(`You took -${actualDamage} damage`)
         }
       }
     } else {
@@ -162,58 +162,18 @@ export default function AIGameplay() {
   return (
     <div className='w-[95%] lg:w-[707px] relative mx-auto lg:px-0 mt-4'>
         <AIHealth gameState={gameState} />
-      <div className="flex flex-col items-center my-[30px] bg-[#3F3F3F] rounded-[10px] p-6 pt-5">
-        <span className="text-[22px] font-bold text-white text-center">
-          {/* {gameState.currentTurn === 'player' ? 'Your Turn' : 'AI Turn'} */}
-        </span>
-        {/* Dice labels */}
-        <div className='flex items-center justify-center gap-4 mb-3'>
-          <div className='flex items-center gap-2'>
-            <div className='w-4 h-4 rounded border-2 border-[#B5A58F]'></div>
-            <span className='text-xs lg:text-sm text-white font-semibold'>You</span>
-          </div>
-          <div className='flex items-center gap-2'>
-            <div className='w-4 h-4 rounded border-2 border-red-500'></div>
-            <span className='text-xs lg:text-sm text-white font-semibold'>AI</span>
-          </div>
-        </div>
-        <div className='flex gap-[10px] lg:gap-[23px]'>
-          {diceImages.map((img, index) => {
-            const diceNumber = index + 1;
-            const playerRolled = gameState?.diceRolls?.['player'] === diceNumber;
-            const aiRolled = gameState?.diceRolls?.['ai'] === diceNumber;
-            const sameRoll = playerRolled && aiRolled;
-            
-            return (
-              <div key={index} className={`relative mb-[10px]`}>
-                {/* Player outline */}
-                {playerRolled && !sameRoll && (
-                  <div className="absolute inset-0 outline-2 outline-[#B5A58F] outline-offset-[3px] lg:outline-offset-[6px] rounded-[10px] pointer-events-none"></div>
-                )}
-                
-                {/* AI outline */}
-                {aiRolled && !sameRoll && (
-                  <div className="absolute inset-0 outline-2 outline-red-500 outline-offset-[3px] lg:outline-offset-[6px] rounded-[10px] pointer-events-none"></div>
-                )}
-                
-                {/* Same roll - offset outlines */}
-                {sameRoll && (
-                  <>
-                    <div className="absolute inset-0 outline-2 outline-[#B5A58F] outline-offset-[3px] lg:outline-offset-[6px] rounded-[10px] pointer-events-none"></div>
-                    <div className="absolute inset-0 outline-2 outline-red-500 outline-offset-[6px] lg:outline-offset-[9px] rounded-[10px] pointer-events-none"></div>
-                  </>
-                )}
-                
-                <img src={img} alt={img} className='size-[42px] lg:size-[90px] rounded-[10px] drop-shadow-lg'/>
-              </div>
-            );
-          })}
-        </div>
-        <div className='space-y-[14px] flex flex-col justify-center items-center mt-2 bg-[#494949] w-full rounded-[10px] py-[18px]'>
+      
+      {/* First Turn Dice Roll - Only shows when game hasn't started */}
+      {(gameState.gameStatus === 'waiting' || gameState.gameStatus === 'character-select') && (
+        <div className="flex flex-col items-center my-[30px] bg-[#3F3F3F] rounded-[10px] p-6 pt-5">
           <AIFirstTurnDiceRoll />
-          <AIDiceRoll />
         </div>
+      )}
+
+      <div className="flex flex-col items-center my-[30px] bg-[#3F3F3F] rounded-[10px] p-6 pt-5">
+        <BattleStoryboard />
       </div>
+      
       <div className="flex flex-col justify-center items-center">
         <PlayerHealth gameState={gameState} />
       </div>
