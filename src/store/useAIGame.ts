@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { Character, Ability, CHARACTERS } from '@/lib/characters';
 import { toast } from 'react-toastify';
+import { getCharacterActivePowerups, getContractCharacterIdFromString } from '@/lib/contractUtils';
 
 export interface Buff {
   name: string;
@@ -68,7 +69,7 @@ const initialAIGameState: AIGameState = {
 interface AIGameStore {
   gameState: AIGameState;
   reset: () => void;
-  selectPlayerCharacter: (character: Character, playerAddress: string) => void;
+  selectPlayerCharacter: (character: Character, playerAddress: string) => Promise<void>;
   selectAICharacter: () => void;
   startGame: (playerAddress: string) => void;
   rollAndRecordDice: (playerType: 'player' | 'ai') => Promise<number>;
@@ -97,7 +98,29 @@ const useAIGameStore = create<AIGameStore>((set, get) => ({
   
   reset: () => set({ gameState: initialAIGameState }),
 
-  selectPlayerCharacter: (character: Character, playerAddress: string) => {
+  selectPlayerCharacter: async (character: Character, playerAddress: string) => {
+    // Fetch active powerups for this character from the contract
+    let activeBuffs: Buff[] = [];
+    try {
+      const contractCharacterId = getContractCharacterIdFromString(character.id);
+      if (contractCharacterId) {
+        const activePowerups = await getCharacterActivePowerups(
+          playerAddress as `0x${string}`,
+          contractCharacterId
+        );
+        
+        // Convert to Buff format for gameState
+        activeBuffs = activePowerups.map(powerup => ({
+          name: powerup.name,
+          effect: powerup.effect,
+          remainingTurns: powerup.remainingTurns,
+        }));
+      }
+    } catch (error) {
+      console.error("Error fetching active powerups for character:", error);
+      // Continue without powerups if there's an error
+    }
+
     set((state) => ({
       gameState: {
         ...state.gameState,
@@ -105,7 +128,8 @@ const useAIGameStore = create<AIGameStore>((set, get) => ({
           ...state.gameState.player,
           id: playerAddress,
           character: character,
-          currentHealth: character.baseHealth
+          currentHealth: character.baseHealth,
+          activeBuffs: activeBuffs
         }
       }
     }));
