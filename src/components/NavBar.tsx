@@ -180,10 +180,21 @@ export default function NavBar() {
     }
   };
 
-  // Fetch CHAKRA balance when wallet connects
+  // Fetch CHAKRA balance when wallet connects and periodically update it
   useEffect(() => {
     if (ready && authenticated && walletAddress) {
+      // Fetch immediately
       fetchChakraBalance();
+      
+      // Set up interval to fetch balance every 10 seconds
+      const intervalId = setInterval(() => {
+        fetchChakraBalance();
+      }, 10000); // Update every 10 seconds
+      
+      // Cleanup interval on unmount or when dependencies change
+      return () => {
+        clearInterval(intervalId);
+      };
     } else {
       setChakraBalance(null);
     }
