@@ -61,22 +61,27 @@ export default function AIGame() {
     setSelectedCharacter(character);
   };
 
-  const handleStartGame = () => {
+  const handleStartGame = async () => {
     if (!selectedCharacter || !walletAddress) {
       toast.error('Please select a character and connect your wallet');
       return;
     }
 
-    // Select player character
-    selectPlayerCharacter(selectedCharacter, walletAddress);
-    
-    // Select random AI character (AI doesn't need an address)
-    selectAICharacter();
-    
-    // Don't start the game yet - let the first turn dice roll handle it
-    // startGame(wallet.publicKey.toString());
-    
-    setGameStarted(true);
+    try {
+      // Select player character (this will load active powerups from contract)
+      await selectPlayerCharacter(selectedCharacter, walletAddress);
+      
+      // Select random AI character (AI doesn't need an address)
+      selectAICharacter();
+      
+      // Don't start the game yet - let the first turn dice roll handle it
+      // startGame(wallet.publicKey.toString());
+      
+      setGameStarted(true);
+    } catch (error) {
+      console.error("Error starting game:", error);
+      toast.error('Failed to start game. Please try again.');
+    }
   };
 
   const handleBackToLobby = () => {
