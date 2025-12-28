@@ -35,7 +35,7 @@ export default function OnboardingDialog() {
   const totalSteps = 3;
   const isOnboardingComplete = hasProfile && hasBalance && hasCharacter;
 
-  // Separate function to check balance
+  // Separate function to check balance - only runs on manual refresh
   const checkBalance = useCallback(async (forceRefresh = false) => {
     if (!walletAddress || !authenticated) {
       return;
@@ -45,12 +45,13 @@ export default function OnboardingDialog() {
 
     try {
       const step2CompleteKey = `onboarding-step2-${walletAddress}`;
+      const balanceStorageKey = `onboarding-balance-${walletAddress}`;
       
-      // If force refresh, refetch balance data
+      // Always refetch balance data when checking (manual refresh)
       let currentBalanceData = balanceData;
-      if (forceRefresh && refetchBalance) {
+      if (refetchBalance) {
         try {
-          console.log('Force refreshing balance data...');
+          console.log('Refreshing balance data...');
           const result = await refetchBalance();
           currentBalanceData = result.data || balanceData;
           console.log('Balance data refetched:', currentBalanceData);
@@ -72,23 +73,25 @@ export default function OnboardingDialog() {
         
         hasTokenBalance = balanceValue > 0;
         
+        // Store in localStorage (persists across sessions)
         if (hasTokenBalance) {
-          sessionStorage.setItem(step2CompleteKey, 'true');
-          sessionStorage.setItem(`onboarding-balance-${walletAddress}`, balanceValue.toString());
-          console.log(`Step 2 complete: Balance ${balanceValue} ${currentBalanceData?.symbol || 'MNT'}`);
+          localStorage.setItem(step2CompleteKey, 'true');
+          localStorage.setItem(balanceStorageKey, balanceValue.toString());
+          console.log(`Step 2 complete: Balance ${balanceValue} ${currentBalanceData?.symbol || 'MNT'} (saved to localStorage)`);
         } else {
-          sessionStorage.removeItem(step2CompleteKey);
-          sessionStorage.removeItem(`onboarding-balance-${walletAddress}`);
+          localStorage.removeItem(step2CompleteKey);
+          localStorage.removeItem(balanceStorageKey);
           console.log(`Step 2 incomplete: Balance is zero`);
         }
       } else {
-        const cachedBalance = sessionStorage.getItem(`onboarding-balance-${walletAddress}`);
-        const wasStep2Complete = sessionStorage.getItem(step2CompleteKey) === 'true';
+        // If balanceData is not available, use cached value from localStorage
+        const cachedBalance = localStorage.getItem(balanceStorageKey);
+        const wasStep2Complete = localStorage.getItem(step2CompleteKey) === 'true';
         
         if (cachedBalance !== null && wasStep2Complete) {
           balanceValue = parseFloat(cachedBalance) || 0;
           hasTokenBalance = balanceValue > 0;
-          console.log(`Step 2: Using cached balance ${balanceValue} (balanceData still loading)`);
+          console.log(`Step 2: Using cached balance ${balanceValue} from localStorage`);
         } else {
           hasTokenBalance = false;
           balanceValue = 0;
@@ -101,8 +104,13 @@ export default function OnboardingDialog() {
     } catch (error) {
       console.error("Error checking balance:", error);
       const step2CompleteKey = `onboarding-step2-${walletAddress}`;
-      const step2Complete = sessionStorage.getItem(step2CompleteKey) === 'true';
+      const step2Complete = localStorage.getItem(step2CompleteKey) === 'true';
       setHasBalance(step2Complete);
+      // Use cached balance value if available
+      const cachedBalance = localStorage.getItem(`onboarding-balance-${walletAddress}`);
+      if (cachedBalance) {
+        setTokenBalance(parseFloat(cachedBalance) || 0);
+      }
     } finally {
       setCheckingBalance(false);
     }
@@ -120,7 +128,7 @@ export default function OnboardingDialog() {
       const step3CompleteKey = `onboarding-step3-${walletAddress}`;
       const step3Complete = sessionStorage.getItem(step3CompleteKey) === 'true';
       
-      // If force refresh, always check fresh. Otherwise, check if not already complete
+      // Always check if forcing refresh, otherwise check if not already complete
       if (forceRefresh || !step3Complete) {
         try {
           console.log('Fetching characters from contract...');
@@ -212,12 +220,27 @@ export default function OnboardingDialog() {
     setChecking(false);
   }, [walletAddress, authenticated, pathname, user, checkBalance, checkCharacter]);
 
-  // Separate useEffect for balance check - runs when balanceData changes
+  // Load balance from localStorage on mount (no refetch on page load/change)
   useEffect(() => {
-    if (ready && authenticated && walletAddress && balanceData !== undefined) {
-      checkBalance(false);
+    if (ready && authenticated && walletAddress) {
+      const step2CompleteKey = `onboarding-step2-${walletAddress}`;
+      const balanceStorageKey = `onboarding-balance-${walletAddress}`;
+      
+      // Load from localStorage (persisted across sessions)
+      const step2Complete = localStorage.getItem(step2CompleteKey) === 'true';
+      const cachedBalance = localStorage.getItem(balanceStorageKey);
+      
+      if (cachedBalance !== null && step2Complete) {
+        const balanceValue = parseFloat(cachedBalance) || 0;
+        setHasBalance(balanceValue > 0);
+        setTokenBalance(balanceValue);
+        console.log(`Loaded balance from localStorage: ${balanceValue}`);
+      } else {
+        setHasBalance(false);
+        setTokenBalance(0);
+      }
     }
-  }, [walletAddress, authenticated, ready, balanceData, checkBalance]);
+  }, [walletAddress, authenticated, ready]);
 
   // Separate useEffect for character check - runs independently
   useEffect(() => {
@@ -248,7 +271,8 @@ export default function OnboardingDialog() {
       const step3CompleteKey = `onboarding-step3-${walletAddress}`;
       const onboardingCompleteKey = `onboarding-complete-${walletAddress}`;
       
-      const step2Complete = sessionStorage.getItem(step2CompleteKey) === 'true';
+      // Balance is stored in localStorage, character in sessionStorage
+      const step2Complete = localStorage.getItem(step2CompleteKey) === 'true';
       const step3Complete = sessionStorage.getItem(step3CompleteKey) === 'true';
       
       // Don't show on task pages
@@ -291,17 +315,16 @@ export default function OnboardingDialog() {
     }
   }, [pathname, walletAddress, authenticated, checkBalance, checkCharacter]);
 
-  // Periodic refresh - runs balance and character checks independently
+  // Periodic refresh - only runs character check (balance is persisted in localStorage)
   useEffect(() => {
     if (ready && authenticated && walletAddress) {
-      // Re-check every 60 seconds
+      // Re-check character every 60 seconds (balance is persisted, no need to refetch)
       const interval = setInterval(() => {
-        checkBalance(false);
         checkCharacter(false);
       }, 60000);
       return () => clearInterval(interval);
     }
-  }, [walletAddress, authenticated, ready, checkBalance, checkCharacter]);
+  }, [walletAddress, authenticated, ready, checkCharacter]);
 
   if (!ready || !authenticated) return null;
 
