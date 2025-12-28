@@ -82,7 +82,7 @@ export default function CharacterCarousel({
         throw new Error("Failed to create game room.");
       }
 
-      selectCharacters(
+      await selectCharacters(
         roomId,
         activeCharacter,
         walletAddress
@@ -118,7 +118,7 @@ export default function CharacterCarousel({
         throw new Error("Failed to join game room.");
       }
 
-      selectCharacters(
+      await selectCharacters(
         roomToJoinId,
         activeCharacter,
         walletAddress
