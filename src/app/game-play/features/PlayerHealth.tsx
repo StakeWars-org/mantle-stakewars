@@ -54,6 +54,28 @@ export default function PlayerHealth({
       </div>
 
       <div className="flex gap-[7px] flex-col w-5/6 ">
+        {/* Stamina Display */}
+        {gameState?.gameStatus === 'inProgress' && (
+          <div className="mb-2">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[#BFE528] text-xs font-semibold">Stamina</span>
+              <span className="text-white text-xs">{currentPlayer?.stamina || 0}/100</span>
+            </div>
+            <div className="bg-[#494949] h-2 rounded-full overflow-hidden">
+              <div 
+                className={`h-full transition-all duration-300 ${
+                  (currentPlayer?.stamina || 0) >= 50 
+                    ? 'bg-green-500' 
+                    : (currentPlayer?.stamina || 0) >= 30 
+                      ? 'bg-yellow-500' 
+                      : 'bg-red-500'
+                }`}
+                style={{ width: `${((currentPlayer?.stamina || 0) / 100) * 100}%` }}
+              />
+            </div>
+          </div>
+        )}
+
         <PlayerAbility
           gameState={gameState}
           userId={currentPlayer?.id as string}
