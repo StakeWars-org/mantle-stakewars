@@ -15,6 +15,7 @@ import { db } from '@/config/firebase';
 import { Character, Ability } from '@/lib/characters';
 import { toast } from 'react-toastify';
 import { Timestamp } from 'firebase/firestore';
+import { getCharacterActivePowerups, getContractCharacterIdFromString } from '@/lib/contractUtils';
 
 export interface Buff {
   name: string;
@@ -116,7 +117,7 @@ interface OnlineGameStore {
   gameState: GameState;
   rollAndRecordDice: () => Promise<number>;
   checkDiceRollsAndSetTurn: () => void;
-  selectCharacters: (roomId: string, character: Character, playerAddress: string) => void;
+  selectCharacters: (roomId: string, character: Character, playerAddress: string) => Promise<void>;
   performAttack: (attackingPlayer: 'player1' | 'player2', ability: Ability, powerUp: boolean) => void;
   useDefense: (
     defendingPlayer: 'player1' | 'player2',
@@ -247,12 +248,35 @@ const useOnlineGameStore = create<OnlineGameStore>((set, get) => ({
       throw new Error("Character already selected");
     }
 
+    // Fetch active powerups for this character from the contract
+    let activeBuffs: Buff[] = [];
+    try {
+      const contractCharacterId = getContractCharacterIdFromString(character.id);
+      if (contractCharacterId) {
+        const activePowerups = await getCharacterActivePowerups(
+          playerAddress as `0x${string}`,
+          contractCharacterId
+        );
+        
+        // Convert to Buff format for gameState
+        activeBuffs = activePowerups.map(powerup => ({
+          name: powerup.name,
+          effect: powerup.effect,
+          remainingTurns: powerup.remainingTurns,
+        }));
+      }
+    } catch (error) {
+      console.error("Error fetching active powerups for character:", error);
+      // Continue without powerups if there's an error
+    }
+
     updateDoc(roomRef, {
       [`players.${playerAddress}.characterId`]: character.id,
       [`gameState.${isPlayer1 ? "player1" : "player2"}.character`]: character,
       [`gameState.${isPlayer1 ? "player1" : "player2"}.currentHealth`]:
         character.baseHealth,
       [`gameState.${isPlayer1 ? "player1" : "player2"}.id`]: playerAddress,
+      [`gameState.${isPlayer1 ? "player1" : "player2"}.activeBuffs`]: activeBuffs,
       [`gameState.gameStatus`]: "character-select",
       status: "character-select",
     });
