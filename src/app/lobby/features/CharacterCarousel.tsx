@@ -179,7 +179,7 @@ export default function CharacterCarousel({
           </div>
 
           {/* Carousel */}
-          <div className="relative w-[250px] h-[250px] sm:w-[260px] sm:h-[240px] flex justify-center items-center">
+          <div className="relative w-[250px] h-[180px] sm:w-[260px] sm:h-[170px] flex justify-center items-center">
             {characters.map((character, i) => {
               const offset = i - active;
               const distance =
@@ -220,7 +220,7 @@ export default function CharacterCarousel({
                     <img
                       src={`/custom-assets/characters/${character.id}.png`}
                       alt={character.nickname}
-                      className="rounded-xl w-full h-full object-contain"
+                      className="rounded-xl border-4 border-black w-full h-full object-contain"
                     />
                     {selectedCharacter?.id === character.id && (
                       <div className="absolute inset-0 flex items-center justify-center">
@@ -236,7 +236,7 @@ export default function CharacterCarousel({
           </div>
         </div>
 
-        <div className="flex flex-col gap-5 items-center pb-5">
+        <div className="flex flex-col gap-5 items-center h-fit">
           <Button
             className="connect-button-bg h-10.5 w-[160px] border border-[#FFFFFF] rounded-lg"
             onClick={handleCharacterSelect}

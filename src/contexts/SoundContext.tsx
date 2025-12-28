@@ -111,16 +111,16 @@ export function SoundProvider({ children }: { children: ReactNode }) {
     }
   }, [pathname, setupAutoplayFallback]);
 
-  // Play button click sound
+  // Play button click sound - always plays regardless of mute state
   const playButtonClick = useCallback(() => {
-    if (isMuted || !buttonClickSoundRef.current) return;
+    if (!buttonClickSoundRef.current) return;
     
-    // Reset to start and play
+    // Reset to start and play (always plays, even when muted)
     buttonClickSoundRef.current.currentTime = 0;
     buttonClickSoundRef.current.play().catch((error) => {
       console.log('Button click sound error:', error);
     });
-  }, [isMuted]);
+  }, []);
 
   // Handle mute state - control volume instead of pausing
   useEffect(() => {

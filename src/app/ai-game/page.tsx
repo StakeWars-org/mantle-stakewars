@@ -1,12 +1,11 @@
 "use client";
 
-"use client";
-
 import React, { useState, useEffect } from 'react';
 import { usePrivy, useWallets } from '@privy-io/react-auth';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-toastify';
-import { CHARACTERS, Character } from '@/lib/characters';
+import { Character } from '@/lib/characters';
+import { getCharactersOwnedByUser } from '@/lib/contractUtils';
 import CharacterCarousel from '../lobby/features/CharacterCarousel';
 import { Button } from '@/components/ui/button';
 import useAIGameStore from '@/store/useAIGame';
@@ -40,25 +39,15 @@ export default function AIGame() {
 
   const fetchUserCharacters = async () => {
     if (!walletAddress) return;
+    
     try {
-      // Fetch owned characters via API
-      const response = await fetch(`/api/get-owned-characters?walletAddress=${walletAddress}`);
-      if (response.ok) {
-        const data = await response.json();
-        const characterIds = data.characterIds || [];
-        
-        // Match with CHARACTERS data
-        const matchedAbilities = characterIds
-          .map((id: string) => {
-            const foundCharacter = CHARACTERS.find((char) => char.id === id);
-            return foundCharacter;
-          })
-          .filter(Boolean) as Character[];
-
-        setCharacterAbilities(matchedAbilities);
-      }
+      // Fetch owned characters directly from contract (same as lobby page)
+      const ownedCharacters = await getCharactersOwnedByUser(walletAddress as `0x${string}`);
+      setCharacterAbilities(ownedCharacters);
     } catch (error) {
-      toast.error(`Error fetching characters ${error}`);
+      console.error("Error fetching characters:", error);
+      toast.error(`Error fetching characters: ${error instanceof Error ? error.message : "Unknown error"}`);
+      setCharacterAbilities([]);
     }
   };
 

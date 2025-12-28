@@ -160,12 +160,23 @@ export default function AIGameplay() {
   };
 
   return (
-    <div className='w-[95%] lg:w-[707px] relative mx-auto lg:px-0'>
+    <div className='w-[95%] lg:w-[707px] relative mx-auto lg:px-0 mt-4'>
         <AIHealth gameState={gameState} />
       <div className="flex flex-col items-center my-[30px] bg-[#3F3F3F] rounded-[10px] p-6 pt-5">
         <span className="text-[22px] font-bold text-white text-center">
           {/* {gameState.currentTurn === 'player' ? 'Your Turn' : 'AI Turn'} */}
         </span>
+        {/* Dice labels */}
+        <div className='flex items-center justify-center gap-4 mb-3'>
+          <div className='flex items-center gap-2'>
+            <div className='w-4 h-4 rounded border-2 border-[#B5A58F]'></div>
+            <span className='text-xs lg:text-sm text-white font-semibold'>You</span>
+          </div>
+          <div className='flex items-center gap-2'>
+            <div className='w-4 h-4 rounded border-2 border-red-500'></div>
+            <span className='text-xs lg:text-sm text-white font-semibold'>AI</span>
+          </div>
+        </div>
         <div className='flex gap-[10px] lg:gap-[23px]'>
           {diceImages.map((img, index) => {
             const diceNumber = index + 1;

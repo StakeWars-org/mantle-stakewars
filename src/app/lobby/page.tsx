@@ -41,7 +41,7 @@ export default function Lobby() {
   }, [ready, authenticated, walletAddress]);
 
   return (
-    <div>
+    <div className="mt-4">
       <Suspense fallback={<div className="p-4"><MoonLoader size={30} /></div>}>
         {characterAbilities.length > 0 ? (
           <div className="space-y-10">
@@ -66,12 +66,6 @@ export default function Lobby() {
                   className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold py-3 px-6 rounded-lg"
                 >
                   🏆 Tournaments
-                </Button>
-                <Button 
-                  onClick={() => router.push('/streaming')}
-                  className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white font-bold py-3 px-6 rounded-lg"
-                >
-                  📺 Streaming
                 </Button>
               </div>
               
