@@ -14,14 +14,14 @@ export default function BattleStoryboard() {
     entry.event.includes('skipped')
   );
   
-  // Get the last 3 attack events (current attack + 2 previous attacks)
-  const recentEntries = attackEvents.slice(-3).reverse();
+  // Get ONLY the last 3 attack events (most recent + 2 previous)
+  // Slice gets last 3 from the end, reverse puts most recent first (at top)
+  const recentEntries = attackEvents.length > 0 
+    ? attackEvents.slice(-3).reverse()  // Last 3, reversed so newest is first
+    : [];
   
-  // Find the absolute most recent attack event timestamp
-  // This is the last entry in the attackEvents array (before reversing)
-  const mostRecentAttackTimestamp = attackEvents.length > 0
-    ? attackEvents[attackEvents.length - 1].timestamp
-    : null;
+  // Only the first entry (index 0) is the most recent and gets the green border
+  // Index 1 and 2 are the previous 2 moves (no green border)
   
   const formatEvent = (entry: BattleLogEntry) => {
     const { event, details } = entry;
@@ -100,17 +100,15 @@ export default function BattleStoryboard() {
             Battle will begin soon...
           </div>
         ) : (
-          recentEntries.map((entry, index) => {
+          recentEntries.slice(0, 3).map((entry, index) => {
             const formatted = formatEvent(entry);
-            // Only mark as current if this entry's timestamp matches the most recent attack timestamp
-            // AND it's the first entry (index 0) to ensure only ONE entry gets the green border
-            const isCurrent = mostRecentAttackTimestamp !== null && 
-                              entry.timestamp === mostRecentAttackTimestamp &&
-                              index === 0;
+            // Only the first entry (index 0) is the most recent and gets the green border
+            // Index 1 and 2 are the 2 previous moves (no green border)
+            const isCurrent = index === 0;
             
             return (
               <div
-                key={entry.timestamp}
+                key={`${entry.timestamp}-${index}`}
                 className={`
                   p-3 rounded-lg border
                   ${isCurrent 
