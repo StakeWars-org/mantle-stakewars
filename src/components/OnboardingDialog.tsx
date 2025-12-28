@@ -80,12 +80,13 @@ export default function OnboardingDialog() {
       let hasTokenBalance = false;
       let balanceValue = 0;
       
+      // Check if balanceData is available and valid
       if (balanceData !== undefined && balanceData !== null) {
         // balanceData.formatted is already in human-readable format (e.g., "0.5")
         // Check both formatted and value to be more robust
-        if (balanceData.formatted !== undefined) {
+        if (balanceData.formatted !== undefined && balanceData.formatted !== null) {
           balanceValue = parseFloat(balanceData.formatted) || 0;
-        } else if (balanceData.value !== undefined) {
+        } else if (balanceData.value !== undefined && balanceData.value !== null) {
           // Fallback: convert from wei if formatted is not available
           balanceValue = Number(balanceData.value) / 1e18;
         }
@@ -104,16 +105,21 @@ export default function OnboardingDialog() {
           console.log(`Step 2 incomplete: Balance is zero`);
         }
       } else {
-        // If balanceData is not loaded yet, check if we have a cached value
-        // But only use it temporarily - we'll re-check when balanceData loads
+        // If balanceData is not loaded yet (undefined/null), use cached value if available
+        // This handles the case when wagmi is still loading on page change
         const cachedBalance = sessionStorage.getItem(`onboarding-balance-${walletAddress}`);
-        if (cachedBalance !== null) {
+        const wasStep2Complete = sessionStorage.getItem(step2CompleteKey) === 'true';
+        
+        if (cachedBalance !== null && wasStep2Complete) {
+          // Use cached value temporarily while balanceData loads
           balanceValue = parseFloat(cachedBalance) || 0;
           hasTokenBalance = balanceValue > 0;
-          // Don't trust cached value - will re-check when balanceData loads
+          console.log(`Step 2: Using cached balance ${balanceValue} (balanceData still loading)`);
         } else {
+          // No cached value or step 2 was never complete - assume no balance
           hasTokenBalance = false;
           balanceValue = 0;
+          console.log(`Step 2: No balance data available and no cache found`);
         }
       }
       
@@ -126,36 +132,39 @@ export default function OnboardingDialog() {
       // Check if user has characters directly from contract (same as lobby page)
       let userHasCharacter = false;
       
-      // If step 3 was previously marked complete, trust it
-      if (step3Complete) {
-        userHasCharacter = true;
-      } else {
-        // Only check if step 2 is complete (user has balance to make contract calls)
-        if (hasTokenBalance || step2Complete) {
-          try {
-            // Add timeout to prevent hanging - use Promise.race with proper typing
-            const characterCheckPromise = getCharactersOwnedByUser(walletAddress as `0x${string}`);
-            const timeoutPromise = new Promise<Awaited<ReturnType<typeof getCharactersOwnedByUser>>>((_, reject) => 
-              setTimeout(() => reject(new Error('Character check timeout')), 10000)
-            );
-            
-            const ownedCharacters = await Promise.race([characterCheckPromise, timeoutPromise]);
-            userHasCharacter = ownedCharacters.length > 0;
-            
-            // If character is found, mark step 3 as complete permanently
-            if (userHasCharacter) {
-              sessionStorage.setItem(step3CompleteKey, 'true');
-              console.log(`Step 3 marked complete: Found ${ownedCharacters.length} character(s)`);
-            }
-          } catch (error) {
-            console.error("Error fetching characters:", error);
-            // If there's an error but step 3 was previously complete, trust the previous status
-            // Otherwise, don't fail - use previous status if available
-            userHasCharacter = step3Complete;
-          }
+      // Always try to check for characters first (regardless of balance - read-only call)
+      // Only fall back to cached status if the check fails
+      try {
+        // Add timeout to prevent hanging - use Promise.race with proper typing
+        const characterCheckPromise = getCharactersOwnedByUser(walletAddress as `0x${string}`);
+        const timeoutPromise = new Promise<Awaited<ReturnType<typeof getCharactersOwnedByUser>>>((_, reject) => 
+          setTimeout(() => reject(new Error('Character check timeout')), 10000)
+        );
+        
+        const ownedCharacters = await Promise.race([characterCheckPromise, timeoutPromise]);
+        userHasCharacter = ownedCharacters.length > 0;
+        
+        // Update sessionStorage based on actual check result
+        if (userHasCharacter) {
+          sessionStorage.setItem(step3CompleteKey, 'true');
+          console.log(`Step 3: Found ${ownedCharacters.length} character(s) - marked complete`);
         } else {
-          // Can't check characters without balance, use previous status
-          userHasCharacter = step3Complete;
+          // No characters found - mark as incomplete
+          sessionStorage.removeItem(step3CompleteKey);
+          console.log(`Step 3: No characters found - marked incomplete`);
+        }
+      } catch (error) {
+        console.error("Error fetching characters:", error);
+        // If check fails, trust the cached completion status if it exists
+        // This prevents false negatives when network/contract calls fail temporarily
+        if (step3Complete) {
+          userHasCharacter = true;
+          console.log(`Step 3: Check failed, but using cached completion status`);
+        } else {
+          // No cached status and check failed - assume incomplete
+          // But don't remove step3Complete if it was set before (might be temporary network issue)
+          userHasCharacter = false;
+          console.log(`Step 3: Check failed and no cached completion found`);
         }
       }
       
