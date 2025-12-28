@@ -16,10 +16,10 @@ export default function GetstartedButton() {
   const handleClick = () => {
     if (!walletConnected) {
       login();
-    } else {
+      } else {
       router.push('/lobby');
-    }
-  };
+      }
+    };
   
   // Only disable if Privy is not ready
   const isDisabled = !ready;

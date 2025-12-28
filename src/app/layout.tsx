@@ -40,7 +40,7 @@ export default function RootLayout({
             <div className="min-h-screen bg-[url('/grid-lines.png')] bg-cover bg-center relative">
               <div className="min-h-screen bg-[url('/bg-gradient.png')] bg-cover bg-center">
                 <NavBar />
-                {children}
+        {children}
                 <Marketplace />
                 <Footer />
               </div>

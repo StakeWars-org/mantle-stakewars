@@ -99,7 +99,7 @@ export default function PlayerStatistics() {
 
   useEffect(() => {
     if (ready && authenticated && walletAddress) {
-      fetchJoinedRooms();
+    fetchJoinedRooms();
     }
   }, [ready, authenticated, walletAddress]);
 
