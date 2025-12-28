@@ -118,12 +118,14 @@ export default function CharacterCarousel({
         throw new Error("Failed to join game room.");
       }
 
+      // Join the room first to add player to players map
+      await joinGameRoom(roomToJoinId, walletAddress);
+      // Then select character
       await selectCharacters(
         roomToJoinId,
         activeCharacter,
         walletAddress
       );
-      await joinGameRoom(roomToJoinId, walletAddress);
 
       router.push(`/game-play/${roomToJoinId}`);
 

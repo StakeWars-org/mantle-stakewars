@@ -285,12 +285,29 @@ const useOnlineGameStore = create<OnlineGameStore>((set, get) => ({
 
     if (!gameRoomDoc.exists()) throw new Error("Game room not found");
 
-    const isPlayer1 = gameRoomDoc.data()?.createdBy === playerAddress;
+    const roomData = gameRoomDoc.data() as GameRoomDocument;
+    const isPlayer1 = roomData?.createdBy === playerAddress;
 
-    const existingCharacterId =
-      gameRoomDoc.data()?.players?.[playerAddress]?.characterId;
+    // Check if player is in the players map
+    if (!roomData?.players?.[playerAddress]) {
+      throw new Error("You must join the game room first before selecting a character");
+    }
+
+    const existingCharacterId = roomData.players[playerAddress]?.characterId;
     if (existingCharacterId) {
       throw new Error("Character already selected");
+    }
+
+    // Also check if the gameState already has this player assigned
+    const existingPlayer1Id = roomData.gameState?.player1?.id;
+    const existingPlayer2Id = roomData.gameState?.player2?.id;
+    
+    if (isPlayer1 && existingPlayer1Id && existingPlayer1Id !== playerAddress) {
+      throw new Error("Player 1 slot is already taken by another player");
+    }
+    
+    if (!isPlayer1 && existingPlayer2Id && existingPlayer2Id !== playerAddress) {
+      throw new Error("Player 2 slot is already taken by another player");
     }
 
     // Fetch active powerups for this character from the contract
@@ -870,19 +887,31 @@ const useOnlineGameStore = create<OnlineGameStore>((set, get) => ({
 
     const roomData = roomSnap.data() as GameRoomDocument;
 
-    if (roomData?.gameState?.player1 && roomData?.gameState?.player1.id === playerAddress) {
+    // Check if player is already in the game
+    if (roomData?.gameState?.player1?.id === playerAddress || roomData?.gameState?.player2?.id === playerAddress) {
       throw new Error("You're already in this game");
     }
 
-    await updateDoc(roomRef, {
-      [`players.${playerAddress}`]: {
-        characterId: null,
-        role: "challenger",
-        wallet: playerAddress,
-        diceRoll: null,
-      },
-      status: "character-select",
-    });
+    // Check if player is already in players map
+    if (roomData?.players?.[playerAddress]) {
+      // Player already joined, just update status if needed
+      if (roomData.status !== "character-select" && roomData.status !== "inProgress") {
+        await updateDoc(roomRef, {
+          status: "character-select",
+        });
+      }
+    } else {
+      // Add player to players map
+      await updateDoc(roomRef, {
+        [`players.${playerAddress}`]: {
+          characterId: null,
+          role: "challenger",
+          wallet: playerAddress,
+          diceRoll: null,
+        },
+        status: "character-select",
+      });
+    }
 
     set({
       roomId,
