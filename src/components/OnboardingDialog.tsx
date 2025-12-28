@@ -2,14 +2,20 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { usePrivy, useWallets } from '@privy-io/react-auth';
+import { useAccount, useBalance } from 'wagmi';
 import { useRouter, usePathname } from 'next/navigation';
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from '@/components/ui/button';
 import { Droplet, Sword, Check, Loader2, UserPlus } from 'lucide-react';
+import { getCharactersOwnedByUser } from '@/lib/contractUtils';
 
 export default function OnboardingDialog() {
   const { ready, authenticated, user } = usePrivy();
   const { wallets } = useWallets();
+  const { address } = useAccount();
+  const { data: balanceData } = useBalance({
+    address: address,
+  });
   const router = useRouter();
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
@@ -19,8 +25,8 @@ export default function OnboardingDialog() {
   const [checking, setChecking] = useState(false);
   const [tokenBalance, setTokenBalance] = useState(0);
 
-  // Get wallet address from Privy wallets
-  const walletAddress = wallets[0]?.address || '';
+  // Get wallet address from Privy wallets or wagmi account
+  const walletAddress = address || wallets[0]?.address || '';
 
   // Calculate progress - Order: Profile -> Balance -> Character
   const stepsCompleted = (hasProfile ? 1 : 0) + (hasBalance ? 1 : 0) + (hasCharacter ? 1 : 0);
@@ -54,32 +60,39 @@ export default function OnboardingDialog() {
       const userHasProfile = !!(user && user.id);
       setHasProfile(userHasProfile);
 
-      // Check token balance via API (Mantle/Ethereum)
+      // Check native token balance (MNT) using Privy/wagmi balance data
       let hasTokenBalance = false;
       let balanceValue = 0;
-      try {
-        const balanceResponse = await fetch(`/api/get-balance?walletAddress=${walletAddress}`);
-        if (balanceResponse.ok) {
-          const balanceData = await balanceResponse.json();
-          balanceValue = balanceData.balance || 0;
-          hasTokenBalance = balanceValue > 0;
+      
+      if (balanceData) {
+        // balanceData.formatted is already in human-readable format (e.g., "0.5")
+        balanceValue = parseFloat(balanceData.formatted) || 0;
+        hasTokenBalance = balanceValue > 0;
+      } else {
+        // Fallback: try to get balance directly using viem if wagmi hook hasn't loaded yet
+        try {
+          // This will be handled by the useBalance hook, so we just wait for it
+          hasTokenBalance = false;
+          balanceValue = 0;
+        } catch {
+          hasTokenBalance = false;
+          balanceValue = 0;
         }
-      } catch {
-        hasTokenBalance = false;
-        balanceValue = 0;
       }
+      
+      // Log the user's Mantle token balance
+      console.log(`User's Mantle Token Balance: ${balanceValue} ${balanceData?.symbol || 'MNT'}`);
+      
       setHasBalance(hasTokenBalance);
       setTokenBalance(balanceValue);
 
-      // Check if user has characters via API
+      // Check if user has characters directly from contract (same as lobby page)
       let userHasCharacter = false;
       try {
-        const response = await fetch(`/api/get-owned-characters?walletAddress=${walletAddress}`);
-        if (response.ok) {
-          const data = await response.json();
-          userHasCharacter = data.characterIds && data.characterIds.length > 0;
-        }
-      } catch {
+        const ownedCharacters = await getCharactersOwnedByUser(walletAddress as `0x${string}`);
+        userHasCharacter = ownedCharacters.length > 0;
+      } catch (error) {
+        console.error("Error fetching characters:", error);
         userHasCharacter = false;
       }
       setHasCharacter(userHasCharacter);
@@ -110,7 +123,7 @@ export default function OnboardingDialog() {
     } finally {
       setChecking(false);
     }
-  }, [walletAddress, authenticated, pathname, user]);
+  }, [walletAddress, authenticated, pathname, user, balanceData]);
 
   // Mark when on task pages
   useEffect(() => {
@@ -157,7 +170,7 @@ export default function OnboardingDialog() {
       const interval = setInterval(checkUserStatus, 60000);
       return () => clearInterval(interval);
     }
-  }, [pathname, user, checkUserStatus, ready, authenticated, walletAddress]);
+  }, [pathname, user, checkUserStatus, ready, authenticated, walletAddress, balanceData]);
 
   if (!ready || !authenticated) return null;
 
@@ -300,9 +313,9 @@ export default function OnboardingDialog() {
                 </h3>
                 <p className="text-gray-400 text-sm mb-3">
                   {hasBalance 
-                    ? `You have ${tokenBalance.toFixed(4)} tokens for transaction fees` 
+                    ? `You have ${tokenBalance.toFixed(4)} ${balanceData?.symbol || 'MNT'} for transaction fees` 
                     : hasProfile
-                      ? "You need tokens to perform transactions on Mantle network"
+                      ? "You need MNT tokens to perform transactions on Mantle network"
                       : "Create your account first before getting tokens"
                   }
                 </p>

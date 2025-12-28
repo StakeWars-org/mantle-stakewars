@@ -13,6 +13,45 @@ import { CHARACTERS } from '@/lib/characters';
 import { ShoppingCart } from 'lucide-react';
 import { getChakraBalance } from '@/lib/contractUtils';
 
+// Map buff names to their corresponding image files
+const getPowerUpImage = (powerUpName: string, index: number): string => {
+  const imageMap: Record<string, string> = {
+    // Power Level 1 - Effect 5
+    "Kunai Precision": "kunai-precision.png",
+    "Sand Shield": "sand-shield.png",
+    "Water Shuriken": "water-shuriken.png",
+    "Static Kunai": "static-kunai.png",
+    // Power Level 2 - Effect 10
+    "Basic Chakra Control": "basic-chakra-control.png",
+    "Desert Step": "desert-step.png",
+    "Mist Veil": "mist-veil.png",
+    "Lightning Step": "lightning-step.png",
+    // Power Level 3 - Effect 15
+    "Leaf Whirlwind": "leaf-wirlwind.png",
+    "Sand Blade Technique": "sandblade.png",
+    "Aqua Blade Formation": "aqua-blade-formation.png",
+    "Electric Palm Strike": "electric-palm-strike.png",
+    // Power Level 4 - Effect 20
+    "Shadow Clone Tactics": "shadow-clone-tactics.png",
+    "Granule Barrage": "granule-barrage.png",
+    "Water Wall Defense": "wall-defence.png",
+    "Thunder Charge": "tunderchall.png",
+    // Power Level 5 - Effect 25
+    "Advanced Chakra Infusion": "chakra-infusion-adv.png",
+    "Hardened Sand Armor": "hardened-sandamour.png",
+    "Hydro Step Mastery": "hydro-step-mastry.png",
+    "Storm Edge Technique": "storm-edge.png",
+  };
+
+  // Use mapped image if available
+  if (imageMap[powerUpName]) {
+    return `/custom-assets/power ups/${imageMap[powerUpName]}`;
+  }
+  
+  // Fallback to default (shouldn't happen with complete mapping)
+  return `/custom-assets/power ups/1000243810.png`;
+};
+
 export default function Marketplace() {
   const [chakraBalance, setChakraBalance] = useState<number | null>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -236,12 +275,13 @@ export default function Marketplace() {
                     className="rounded-[10px] flex flex-col items-center justify-between p-5 bg-[#00000040] max-w-52"
                   >
                     <div>
-                      <div className="bg-[#040404] rounded-[10px] flex justify-center">
+                      <div className="bg-[#040404] rounded-[10px] flex justify-center items-center w-full h-[100px]">
                         <img
-                          src="/power-up-default.svg"
-                          alt="power-up-default"
                           width={100}
                           height={100}
+                          src={getPowerUpImage(powerup.name, index)}
+                          alt={powerup.name}
+                          className="w-full h-full object-contain"
                         />
                       </div>
 

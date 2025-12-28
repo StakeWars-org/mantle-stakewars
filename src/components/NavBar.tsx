@@ -49,7 +49,6 @@ const navigationLinks: NavLink[] = [
   { href: '/tournaments', label: 'Tournaments', icon: Trophy },
   { href: '/wager', label: 'Wager Matches (PvP)', icon: DollarSign, requiresAuth: true },
   { href: '/leaderboard', label: 'Leaderboard', icon: BarChart3 },
-  { href: '/faucet', label: 'SOL Faucet', icon: Droplet, requiresAuth: true },
   { href: '/transfer', label: 'Transfer CHAKRA', icon: Send, requiresAuth: true },
   { href: '/ai-game', label: 'AI Game (PvAI)', icon: Bot, requiresAuth: true },
 ];

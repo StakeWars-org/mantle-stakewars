@@ -182,7 +182,7 @@ export default function Gameplay({roomId} : {roomId: string}) {
   };
 
   return (
-    <div className='w-[95%] lg:w-[707px] pb-4 relative mx-auto lg:px-0 mt-4'>
+    <div className='w-[95%] lg:w-[707px] pb-4 relative mx-auto lg:px-0 mt-10'>
         <OpponentPlayerHealth gameState={gameState} />
         
         <div className="flex justify-center items-center mt-4 mb-2">
