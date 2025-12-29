@@ -10,7 +10,7 @@ import PlayerHealth from "./PlayerHealth";
 import AIHealth from './AIHealth';
 import AILostMessage from './AILostMessage';
 import AIWonMessage from './AIWonMessage';
-import BattleStoryboard from './BattleStoryboard';
+// import BattleStoryboard from './BattleStoryboard';
 import { usePrivy, useWallets } from '@privy-io/react-auth';
 import { useRouter } from 'next/navigation';
 
@@ -170,9 +170,9 @@ export default function AIGameplay() {
         </div>
       )}
 
-      <div className="flex flex-col items-center my-[30px] bg-[#3F3F3F] rounded-[10px] p-6 pt-5">
+      {/* <div className="flex flex-col items-center my-[30px] bg-[#3F3F3F] rounded-[10px] p-6 pt-5">
         <BattleStoryboard />
-      </div>
+      </div> */}
       
       <div className="flex flex-col justify-center items-center">
         <PlayerHealth gameState={gameState} />

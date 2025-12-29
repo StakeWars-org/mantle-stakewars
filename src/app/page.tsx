@@ -8,7 +8,7 @@ export default function Home() {
   return (
     <div>
       <div className="flex flex-col items-center mt-5">
-        <img src="/stake-wars-logo.png" alt="stake wars logo" className="size-[320px] hidden sm:block"/>
+        <img src="/stake-wars-logo.png" alt="stake wars logo" className="size-[240px] hidden sm:block"/>
         <h1 className="font-bold text-2xl -mt-4 mb-1">Welcome to Stakewars</h1>
         <p className="font-light text-lg text-center">Connect your wallet to access a whole new universe</p>
       </div>
