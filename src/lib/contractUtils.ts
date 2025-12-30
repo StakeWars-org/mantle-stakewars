@@ -1,4 +1,4 @@
-import { createPublicClient, http, defineChain } from "viem";
+import { createPublicClient, http, defineChain, encodeAbiParameters, keccak256, stringToBytes, encodeFunctionData } from "viem";
 import { mantleTestnet as viemMantleTestnet } from "viem/chains";
 import { STAKEWARS_ABI } from "./abi";
 import { STAKEWARS_CONTRACT_ADDRESS } from "./contractaddr";
@@ -267,6 +267,171 @@ export async function getCharacterActivePowerups(
   } catch (error) {
     console.error("Error fetching character active powerups:", error);
     return [];
+  }
+}
+
+/**
+ * Game Result Data Structure
+ * This interface matches the data structure logged when a game ends
+ */
+export interface GameResultData {
+  gameID: string;
+  player1Address: string;
+  player2Address: string;
+  winner: "player1" | "player2";
+  winnerAddress: string;
+  loserAddress: string;
+  winnerChakra: number;
+  loserChakra: number;
+  winnerXP: number;
+  loserXP: number;
+  player1Character: string;
+  player2Character: string;
+}
+
+/**
+ * Encode game result data for smart contract interaction
+ * 
+ * Encoding Format (ABI-encoded):
+ * - bytes32 gameID (keccak256 hash of the game ID string)
+ * - address player1Address
+ * - address player2Address
+ * - uint8 winner (1 for player1, 2 for player2)
+ * - address winnerAddress
+ * - address loserAddress
+ * - uint256 winnerChakra
+ * - uint256 loserChakra
+ * - uint256 winnerXP
+ * - uint256 loserXP
+ * - bytes32 player1Character (keccak256 hash of character name)
+ * - bytes32 player2Character (keccak256 hash of character name)
+ * 
+ * Solidity struct equivalent:
+ * struct GameResult {
+ *     bytes32 gameID;
+ *     address player1Address;
+ *     address player2Address;
+ *     uint8 winner; // 1 = player1, 2 = player2
+ *     address winnerAddress;
+ *     address loserAddress;
+ *     uint256 winnerChakra;
+ *     uint256 loserChakra;
+ *     uint256 winnerXP;
+ *     uint256 loserXP;
+ *     bytes32 player1Character;
+ *     bytes32 player2Character;
+ * }
+ * 
+ * To decode in Solidity:
+ * ```solidity
+ * struct GameResult {
+ *     bytes32 gameID;
+ *     address player1Address;
+ *     address player2Address;
+ *     uint8 winner;
+ *     address winnerAddress;
+ *     address loserAddress;
+ *     uint256 winnerChakra;
+ *     uint256 loserChakra;
+ *     uint256 winnerXP;
+ *     uint256 loserXP;
+ *     bytes32 player1Character;
+ *     bytes32 player2Character;
+ * }
+ * 
+ * function processGameResult(bytes calldata data) external {
+ *     GameResult memory result = abi.decode(data, (GameResult));
+ *     // Process the result...
+ * }
+ * ```
+ * 
+ * @param gameResult - The game result data to encode
+ * @returns Hex-encoded bytes that can be sent to a smart contract
+ */
+export function encodeGameResult(gameResult: GameResultData): `0x${string}` {
+  // Hash gameID string to bytes32 using keccak256
+  const gameIDHash = keccak256(stringToBytes(gameResult.gameID));
+  
+  // Hash character names to bytes32 using keccak256
+  const player1CharacterHash = keccak256(stringToBytes(gameResult.player1Character));
+  const player2CharacterHash = keccak256(stringToBytes(gameResult.player2Character));
+  
+  // Convert winner to uint8 (1 for player1, 2 for player2)
+  const winnerValue: number = gameResult.winner === "player1" ? 1 : 2;
+  
+  // Encode all parameters using ABI encoding
+  const encoded = encodeAbiParameters(
+    [
+      { type: "bytes32", name: "gameID" },
+      { type: "address", name: "player1Address" },
+      { type: "address", name: "player2Address" },
+      { type: "uint8", name: "winner" },
+      { type: "address", name: "winnerAddress" },
+      { type: "address", name: "loserAddress" },
+      { type: "uint256", name: "winnerChakra" },
+      { type: "uint256", name: "loserChakra" },
+      { type: "uint256", name: "winnerXP" },
+      { type: "uint256", name: "loserXP" },
+      { type: "bytes32", name: "player1Character" },
+      { type: "bytes32", name: "player2Character" },
+    ],
+    [
+      gameIDHash,
+      gameResult.player1Address as `0x${string}`,
+      gameResult.player2Address as `0x${string}`,
+      winnerValue,
+      gameResult.winnerAddress as `0x${string}`,
+      gameResult.loserAddress as `0x${string}`,
+      BigInt(gameResult.winnerChakra),
+      BigInt(gameResult.loserChakra),
+      BigInt(gameResult.winnerXP),
+      BigInt(gameResult.loserXP),
+      player1CharacterHash,
+      player2CharacterHash,
+    ]
+  );
+  
+  return encoded;
+}
+
+/**
+ * Process game result on the smart contract
+ * @param gameResult - The game result data to process
+ * @param sendTransaction - The Privy sendTransaction function
+ * @param walletAddress - The wallet address to use for the transaction
+ * @returns Transaction hash
+ */
+export async function processGameResultOnChain(
+  gameResult: GameResultData,
+  sendTransaction: (request: { to: `0x${string}`; data: `0x${string}` }, options?: { address?: `0x${string}` }) => Promise<{ hash: `0x${string}` }>,
+  walletAddress: `0x${string}`
+): Promise<`0x${string}`> {
+  try {
+    // Encode the game result data
+    const encodedData = encodeGameResult(gameResult);
+    
+    // Encode the function call
+    const functionData = encodeFunctionData({
+      abi: STAKEWARS_ABI,
+      functionName: "processGameResult",
+      args: [encodedData],
+    });
+    
+    // Send the transaction
+    const { hash } = await sendTransaction(
+      {
+        to: STAKEWARS_CONTRACT_ADDRESS as `0x${string}`,
+        data: functionData,
+      },
+      {
+        address: walletAddress,
+      }
+    );
+    
+    return hash;
+  } catch (error) {
+    console.error("Error processing game result on chain:", error);
+    throw error;
   }
 }
 
