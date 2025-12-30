@@ -448,22 +448,22 @@ export default function Marketplace() {
   const CHARACTER_PRICE = 1000;
 
   // Debug logging for character detection
-  console.log('[Marketplace Debug] Character Detection:', {
-    gameStatus: gameState?.gameStatus,
-    isInGameplay,
-    walletAddress,
-    currentPlayer,
-    player1Id: gameState?.player1?.id,
-    player2Id: gameState?.player2?.id,
-    currentPlayerCharacter: currentPlayerCharacter ? {
-      id: currentPlayerCharacter.id,
-      nickname: currentPlayerCharacter.nickname,
-      village: currentPlayerCharacter.village
-    } : null,
-    gameStateKeys: gameState ? Object.keys(gameState) : 'no gameState',
-    roomId,
-    pathname
-  });
+  // console.log('[Marketplace Debug] Character Detection:', {
+  //   gameStatus: gameState?.gameStatus,
+  //   isInGameplay,
+  //   walletAddress,
+  //   currentPlayer,
+  //   player1Id: gameState?.player1?.id,
+  //   player2Id: gameState?.player2?.id,
+  //   currentPlayerCharacter: currentPlayerCharacter ? {
+  //     id: currentPlayerCharacter.id,
+  //     nickname: currentPlayerCharacter.nickname,
+  //     village: currentPlayerCharacter.village
+  //   } : null,
+  //   gameStateKeys: gameState ? Object.keys(gameState) : 'no gameState',
+  //   roomId,
+  //   pathname
+  // });
 
   return (
     <div className={`fixed ${isInGameplay ? 'bottom-[137px] left-5' : 'bottom-8 left-8'}`}>
