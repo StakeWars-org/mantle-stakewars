@@ -44,7 +44,7 @@ const PlayerHealth: React.FC<PlayerHealthProps> = ({ gameState }) => {
         </div>
       </div>
 
-      <div className="bg-[#3F3F3F] bg-cover min-h-[129px] lg:h-[267px] rounded-[5px] lg:rounded-[10px] flex justify-between gap-8 items-center px-6 py-2 w-full overflow-auto">
+      <div className="bg-[#3F3F3F] bg-cover min-h-[129px] lg:h-fit rounded-[5px] lg:rounded-[10px] flex justify-between gap-8 items-center px-6 py-2 w-full overflow-auto">
         <div
           className={`flex flex-col rounded-[6px] relative justify-end items-center w-[63px] lg:w-[132px] h-[97px] lg:h-[195px] p-4 overflow-hidden outline-1 outline-[#E8E8E8] outline-offset-[6px] shadow-[0px_4px_7.2px_3px_rgba(191,229,40,0.39)]`}
         >
@@ -84,7 +84,7 @@ const PlayerHealth: React.FC<PlayerHealthProps> = ({ gameState }) => {
             gameState={gameState}
           />
 
-                     {/* Player Defense Inventory */}
+            {/* Player Defense Inventory */}
            <div className="mt-2 min-h-[40px]">
              <span className="text-[#BFE528] text-xs">Your Defenses:</span>
              <div className="flex items-center flex-wrap gap-2 mt-1 min-h-[24px]">
