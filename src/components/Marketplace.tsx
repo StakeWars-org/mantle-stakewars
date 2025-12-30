@@ -596,54 +596,54 @@ export default function Marketplace() {
                     conditions.hasPlayerVillage;
                     
                   // Comprehensive debug logging for all powerups
-                  console.log(`[Powerup Debug] ${powerup.name} (${powerup.village}):`, {
-                    // Village check
-                    playerVillageString,
-                    powerupVillage: powerup.village,
-                    isVillageBuff,
+                  // console.log(`[Powerup Debug] ${powerup.name} (${powerup.village}):`, {
+                  //   // Village check
+                  //   playerVillageString,
+                  //   powerupVillage: powerup.village,
+                  //   isVillageBuff,
                     
-                    // Buff ID
-                    buffId,
-                    effect: powerup.effect,
+                  //   // Buff ID
+                  //   buffId,
+                  //   effect: powerup.effect,
                     
-                    // Contract data
-                    contractBuffFound: contractBuff !== undefined,
-                    contractPriceFromBuff: contractBuff?.price,
-                    fallbackPrice: powerup.price,
-                    displayPrice: contractPrice,
-                    hasContractPrice,
+                  //   // Contract data
+                  //   contractBuffFound: contractBuff !== undefined,
+                  //   contractPriceFromBuff: contractBuff?.price,
+                  //   fallbackPrice: powerup.price,
+                  //   displayPrice: contractPrice,
+                  //   hasContractPrice,
                     
-                    // Balance
-                    currentBalance,
-                    requiredPrice: contractPrice,
-                    hasEnoughBalance,
-                    balanceDifference: currentBalance - contractPrice,
+                  //   // Balance
+                  //   currentBalance,
+                  //   requiredPrice: contractPrice,
+                  //   hasEnoughBalance,
+                  //   balanceDifference: currentBalance - contractPrice,
                     
-                    // Character/Player data
-                    contractCharacterId,
-                    playerVillage,
-                    hasContractCharacterId: conditions.hasContractCharacterId,
-                    hasPlayerVillage: conditions.hasPlayerVillage,
+                  //   // Character/Player data
+                  //   contractCharacterId,
+                  //   playerVillage,
+                  //   hasContractCharacterId: conditions.hasContractCharacterId,
+                  //   hasPlayerVillage: conditions.hasPlayerVillage,
                     
-                    // Purchase state
-                    isPurchasing,
+                  //   // Purchase state
+                  //   isPurchasing,
                     
-                    // All conditions
-                    conditions,
+                  //   // All conditions
+                  //   conditions,
                     
-                    // Final result
-                    canPurchase,
-                    reason: !canPurchase ? (
-                      !conditions.isVillageBuff ? 'NOT IN PLAYER VILLAGE' :
-                      !conditions.hasValidBuffId ? 'INVALID BUFF ID' :
-                      !conditions.hasContractPrice ? 'NO CONTRACT PRICE DATA' :
-                      !conditions.hasEnoughBalance ? `INSUFFICIENT BALANCE (need ${contractPrice.toFixed(2)}, have ${currentBalance.toFixed(2)})` :
-                      !conditions.isNotPurchasing ? 'ALREADY PURCHASING' :
-                      !conditions.hasContractCharacterId ? 'NO CONTRACT CHARACTER ID' :
-                      !conditions.hasPlayerVillage ? 'NO PLAYER VILLAGE' :
-                      'UNKNOWN REASON'
-                    ) : 'CAN PURCHASE'
-                  });
+                  //   // Final result
+                  //   canPurchase,
+                  //   reason: !canPurchase ? (
+                  //     !conditions.isVillageBuff ? 'NOT IN PLAYER VILLAGE' :
+                  //     !conditions.hasValidBuffId ? 'INVALID BUFF ID' :
+                  //     !conditions.hasContractPrice ? 'NO CONTRACT PRICE DATA' :
+                  //     !conditions.hasEnoughBalance ? `INSUFFICIENT BALANCE (need ${contractPrice.toFixed(2)}, have ${currentBalance.toFixed(2)})` :
+                  //     !conditions.isNotPurchasing ? 'ALREADY PURCHASING' :
+                  //     !conditions.hasContractCharacterId ? 'NO CONTRACT CHARACTER ID' :
+                  //     !conditions.hasPlayerVillage ? 'NO PLAYER VILLAGE' :
+                  //     'UNKNOWN REASON'
+                  //   ) : 'CAN PURCHASE'
+                  // });
 
                   return (
                   <div
