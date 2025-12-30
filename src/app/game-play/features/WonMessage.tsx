@@ -398,7 +398,7 @@ export default function WonMessage({ roomId }: WonMessageProps) {
          const mintData = await mintResponse.json();
          
          if (mintData.transactionResult && mintData.transactionResult.status === "Success") {
-           toast.success(`Successfully claimed 50 Chakra! ${mintData.transactionResult.signature}`);
+           toast.success(`Successfully claimed 100 Chakra! ${mintData.transactionResult.signature}`);
          } else {
            throw new Error("Chakra mint transaction failed");
          }
@@ -495,7 +495,7 @@ export default function WonMessage({ roomId }: WonMessageProps) {
               disabled={isClaiming || hasClaimed}
               className="border-none connect-button-bg text-white bg-[#B91770] hover:bg-[#B91770]/80 cursor-pointer font-bold text-[12px] w-[190px] h-[38px] rounded-[4px]"
             >
-              {isClaiming ? "Claiming..." : hasClaimed ? "Claimed!" : "Claim 10 XP + 50 Chakra"}
+              {isClaiming ? "Claiming..." : hasClaimed ? "Claimed!" : "Claim 10 XP + 100 Chakra"}
             </Button>
           </div>
         </div>
