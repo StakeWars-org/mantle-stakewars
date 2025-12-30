@@ -589,6 +589,33 @@ const useOnlineGameStore = create<OnlineGameStore>((set, get) => ({
       updateData["gameState.gameStatus"] = "finished";
       updateData["status"] = "finished";
       updateData["gameState.winner"] = opponentPlayer;
+      
+      // Log game end data
+      const winner = opponentPlayer;
+      const loser = defendingPlayer;
+      const winnerAddress = gameState[winner].id || '';
+      const loserAddress = gameState[loser].id || '';
+      const winnerChakra = 50; // Winner gets 50 Chakra
+      const loserChakra = 20; // Loser gets 20 Chakra
+      const winnerXP = 10; // Winner gets 10 XP
+      const loserXP = 5; // Loser gets 5 XP
+      const player1Character = gameState.player1.character?.nickname || 'Unknown';
+      const player2Character = gameState.player2.character?.nickname || 'Unknown';
+      
+      console.log('🎮 PvP Game Ended:', {
+        gameID: roomId,
+        player1Address: gameState.player1.id || '',
+        player2Address: gameState.player2.id || '',
+        winner: winner,
+        winnerAddress: winnerAddress,
+        loserAddress: loserAddress,
+        winnerChakra: winnerChakra,
+        loserChakra: loserChakra,
+        winnerXP: winnerXP,
+        loserXP: loserXP,
+        player1Character: player1Character,
+        player2Character: player2Character
+      });
     }
 
     await updateDoc(roomRef, updateData);
@@ -696,10 +723,64 @@ const useOnlineGameStore = create<OnlineGameStore>((set, get) => ({
       updateData["gameState.gameStatus"] = "finished";
       updateData["status"] = "finished";
       updateData["gameState.winner"] = defendingPlayer;
+      
+      // Log game end data
+      const winner = defendingPlayer;
+      const loser = opponentPlayer;
+      const winnerAddress = gameState[winner].id || '';
+      const loserAddress = gameState[loser].id || '';
+      const winnerChakra = 100; // Winner gets 100 Chakra
+      const loserChakra = 50; // Loser gets 50 Chakra
+      const winnerXP = 10; // Winner gets 10 XP
+      const loserXP = 5; // Loser gets 5 XP
+      const player1Character = gameState.player1.character?.nickname || 'Unknown';
+      const player2Character = gameState.player2.character?.nickname || 'Unknown';
+      
+      console.log('🎮 PvP Game Ended:', {
+        gameID: roomId,
+        player1Address: gameState.player1.id || '',
+        player2Address: gameState.player2.id || '',
+        winner: winner,
+        winnerAddress: winnerAddress,
+        loserAddress: loserAddress,
+        winnerChakra: winnerChakra,
+        loserChakra: loserChakra,
+        winnerXP: winnerXP,
+        loserXP: loserXP,
+        player1Character: player1Character,
+        player2Character: player2Character
+      });
     } else if (defendingPlayerNewHealth <= 0) {
       updateData["gameState.gameStatus"] = "finished";
       updateData["status"] = "finished";
       updateData["gameState.winner"] = opponentPlayer;
+      
+      // Log game end data
+      const winner = opponentPlayer;
+      const loser = defendingPlayer;
+      const winnerAddress = gameState[winner].id || '';
+      const loserAddress = gameState[loser].id || '';
+      const winnerChakra = 50; // Winner gets 50 Chakra
+      const loserChakra = 20; // Loser gets 20 Chakra
+      const winnerXP = 10; // Winner gets 10 XP
+      const loserXP = 5; // Loser gets 5 XP
+      const player1Character = gameState.player1.character?.nickname || 'Unknown';
+      const player2Character = gameState.player2.character?.nickname || 'Unknown';
+      
+      console.log('🎮 PvP Game Ended:', {
+        gameID: roomId,
+        player1Address: gameState.player1.id || '',
+        player2Address: gameState.player2.id || '',
+        winner: winner,
+        winnerAddress: winnerAddress,
+        loserAddress: loserAddress,
+        winnerChakra: winnerChakra,
+        loserChakra: loserChakra,
+        winnerXP: winnerXP,
+        loserXP: loserXP,
+        player1Character: player1Character,
+        player2Character: player2Character
+      });
     }
 
     await updateDoc(roomRef, updateData);

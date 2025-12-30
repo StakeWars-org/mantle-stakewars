@@ -491,7 +491,6 @@ const useAIGameStore = create<AIGameStore>((set, get) => ({
     const defenseInventory = gameState.ai.defenseInventory;
     const aiHealth = gameState.ai.currentHealth;
     const playerHealth = gameState.player.currentHealth;
-    const aiStamina = gameState.ai.stamina;
     const playerStamina = gameState.player.stamina;
     
     let chosenDefense: string | null = null;
