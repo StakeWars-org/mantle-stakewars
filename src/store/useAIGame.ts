@@ -491,26 +491,43 @@ const useAIGameStore = create<AIGameStore>((set, get) => ({
     const defenseInventory = gameState.ai.defenseInventory;
     const aiHealth = gameState.ai.currentHealth;
     const playerHealth = gameState.player.currentHealth;
+    const aiStamina = gameState.ai.stamina;
+    const playerStamina = gameState.player.stamina;
     
     let chosenDefense: string | null = null;
     let defenseScore = 0;
     
+    // ========== ANALYZE STATS ==========
     const aiHealthPercent = (aiHealth / (gameState.ai.character?.baseHealth || 200)) * 100;
     const playerHealthPercent = (playerHealth / (gameState.player.character?.baseHealth || 200)) * 100;
+    const playerStaminaPercent = (playerStamina / STAMINA.MAX) * 100;
+    const healthDifference = aiHealthPercent - playerHealthPercent;
+    const totalDefenses = Object.values(defenseInventory).reduce((sum, count) => sum + count, 0);
+    
+    // ========== ALWAYS USE DEFENSE IF AVAILABLE ==========
+    // AI should always protect itself - only skip if truly no defenses available
     
     if (defenseInventory.reflect && defenseInventory.reflect > 0) {
       let reflectScore = 0;
       
-      // High damage attacks are perfect for reflect
-      if (incomingDamage > 35) reflectScore += 50;
-      else if (incomingDamage > 25) reflectScore += 30;
-      else if (incomingDamage > 15) reflectScore += 15;
+      // High damage attacks are perfect for reflect (damage gets reflected back)
+      if (incomingDamage >= 30) reflectScore += 60; // Very high damage - reflect is excellent
+      else if (incomingDamage >= 25) reflectScore += 40;
+      else if (incomingDamage >= 20) reflectScore += 25;
+      else if (incomingDamage >= 15) reflectScore += 15;
       
-      // If AI is low health and player is high health, reflect is risky
-      if (aiHealthPercent < 30 && playerHealthPercent > 70) reflectScore -= 20;
+      // Analyze opponent stats: If player is low on health/stamina, reflect can finish them
+      if (playerHealthPercent < 30) reflectScore += 30; // Can potentially kill with reflect
+      if (playerStaminaPercent < 30) reflectScore += 20; // Player struggling - reflect pressure
       
-      // If AI is high health and player is low health, reflect is great
-      if (aiHealthPercent > 70 && playerHealthPercent < 30) reflectScore += 25;
+      // If AI is high health and player is low health, reflect is great (can win)
+      if (aiHealthPercent > 60 && playerHealthPercent < 40) reflectScore += 35;
+      
+      // If AI is low health and player is high health, reflect is risky but still worth it
+      if (aiHealthPercent < 30 && playerHealthPercent > 70) reflectScore -= 10; // Slight penalty but still use it
+      
+      // If AI is winning significantly, reflect to maintain advantage
+      if (healthDifference > 30) reflectScore += 20;
       
       if (reflectScore > defenseScore) {
         defenseScore = reflectScore;
@@ -521,15 +538,21 @@ const useAIGameStore = create<AIGameStore>((set, get) => ({
     if (defenseInventory.block && defenseInventory.block > 0) {
       let blockScore = 0;
       
-      // Block is good for medium damage
-      if (incomingDamage > 20 && incomingDamage <= 35) blockScore += 30;
-      else if (incomingDamage > 15) blockScore += 20;
+      // Block is good for medium to high damage (reduces damage)
+      if (incomingDamage >= 25) blockScore += 35;
+      else if (incomingDamage >= 20) blockScore += 30;
+      else if (incomingDamage >= 15) blockScore += 20;
+      else blockScore += 10;
       
-      // If AI is low health, block is safer than reflect
-      if (aiHealthPercent < 40) blockScore += 15;
+      // If AI is low health, block is safer than reflect (guaranteed damage reduction)
+      if (aiHealthPercent < 40) blockScore += 25;
+      if (aiHealthPercent < 25) blockScore += 15; // Very low health - block is safest
       
-      // If AI has more health than player, block is good
-      if (aiHealthPercent > playerHealthPercent) blockScore += 10;
+      // If AI has more health than player, block is good (preserve advantage)
+      if (aiHealthPercent > playerHealthPercent) blockScore += 15;
+      
+      // If this is the last defense, block is safer
+      if (totalDefenses <= 1) blockScore += 10;
       
       if (blockScore > defenseScore) {
         defenseScore = blockScore;
@@ -540,19 +563,26 @@ const useAIGameStore = create<AIGameStore>((set, get) => ({
     if (defenseInventory.dodge && defenseInventory.dodge > 0) {
       let dodgeScore = 0;
       
-      // Dodge is best for low damage attacks
-      if (incomingDamage <= 15) dodgeScore += 40;
-      else if (incomingDamage <= 25) dodgeScore += 25;
+      // Dodge is best for any damage (completely avoids it)
+      // Always good, but especially for high damage
+      if (incomingDamage >= 30) dodgeScore += 50; // High damage - dodge is excellent
+      else if (incomingDamage >= 25) dodgeScore += 40;
+      else if (incomingDamage >= 20) dodgeScore += 30;
+      else if (incomingDamage >= 15) dodgeScore += 25;
+      else dodgeScore += 20;
       
-      // If AI is very low health, dodge is safest
-      if (aiHealthPercent < 25) dodgeScore += 30;
+      // If AI is very low health, dodge is safest (guaranteed no damage)
+      if (aiHealthPercent < 30) dodgeScore += 30;
+      if (aiHealthPercent < 20) dodgeScore += 20; // Critical health - dodge is best
       
       // If AI is winning (much more health), dodge to preserve advantage
-      if (aiHealthPercent > playerHealthPercent + 20) dodgeScore += 15;
+      if (aiHealthPercent > playerHealthPercent + 20) dodgeScore += 20;
       
-      // If this is the last defense, be more conservative
-      const totalDefenses = Object.values(defenseInventory).reduce((sum, count) => sum + count, 0);
-      if (totalDefenses <= 1) dodgeScore += 10;
+      // If this is the last defense, dodge is safest (guaranteed protection)
+      if (totalDefenses <= 1) dodgeScore += 15;
+      
+      // Analyze opponent: If player is low on stamina, dodge to waste their attack
+      if (playerStaminaPercent < 40) dodgeScore += 15;
       
       if (dodgeScore > defenseScore) {
         defenseScore = dodgeScore;
@@ -560,9 +590,31 @@ const useAIGameStore = create<AIGameStore>((set, get) => ({
       }
     }
     
-    // Sometimes choose not to use defense for strategic reasons
-    if (defenseScore < 15) {
-      chosenDefense = null;
+    // ========== STRATEGIC DEFENSE SKIPPING ==========
+    // AI can strategically skip defense if:
+    // 1. The damage won't put AI in a difficult situation (won't drop below 30% health)
+    // 2. AI will survive the damage comfortably
+    // 3. Skipping gives AI a turn to make a strategic decision
+    
+    const hadDefenses = Object.values(defenseInventory).some((count) => count > 0);
+    const healthAfterDamage = aiHealth - incomingDamage;
+    const healthPercentAfterDamage = (healthAfterDamage / (gameState.ai.character?.baseHealth || 200)) * 100;
+    const willBeInDifficultSituation = healthPercentAfterDamage < 30 || healthAfterDamage <= 0;
+    
+    // Strategic skip: If damage won't put AI in difficult situation, skip to get a turn
+    if (hadDefenses && !willBeInDifficultSituation && healthPercentAfterDamage > 30) {
+      // Additional conditions for strategic skip:
+      // - AI has good health buffer (> 40% after damage)
+      // - AI is winning or close in health
+      // - Damage is relatively low compared to AI's health
+      const damagePercentOfHealth = (incomingDamage / aiHealth) * 100;
+      
+      if (healthPercentAfterDamage > 40 && (healthDifference >= -10 || damagePercentOfHealth < 25)) {
+        // Strategic skip: Take damage to get a turn and make a decision
+        toast.info(`🤖 AI strategically skipped defense to get a turn!`);
+        get().skipDefense('ai', incomingDamage, ability);
+        return;
+      }
     }
 
     if (chosenDefense) {
@@ -575,13 +627,42 @@ const useAIGameStore = create<AIGameStore>((set, get) => ({
         get().useDefense('ai', defenseAbility, incomingDamage);
       }
     } else {
-      // Check if AI had defenses but chose not to use them
-      const hadDefenses = Object.values(defenseInventory).some((count) => count > 0);
+      // Check if AI had defenses but couldn't choose
       if (hadDefenses) {
-        toast.info(`🤖 AI chose to skip defense and take the damage!`);
-      } else {
-        toast.info(`🤖 AI has no defenses available!`);
+        // Fallback: Use first available defense (unless we're strategically skipping)
+        if (!willBeInDifficultSituation && healthPercentAfterDamage > 30) {
+          // Still consider strategic skip
+          const damagePercentOfHealth = (incomingDamage / aiHealth) * 100;
+          if (healthPercentAfterDamage > 40 && (healthDifference >= -10 || damagePercentOfHealth < 25)) {
+            toast.info(`🤖 AI strategically skipped defense to get a turn!`);
+            get().skipDefense('ai', incomingDamage, ability);
+            return;
+          }
+        }
+        
+        // Use best available defense
+        if (defenseInventory.dodge && defenseInventory.dodge > 0) {
+          chosenDefense = 'dodge';
+        } else if (defenseInventory.block && defenseInventory.block > 0) {
+          chosenDefense = 'block';
+        } else if (defenseInventory.reflect && defenseInventory.reflect > 0) {
+          chosenDefense = 'reflect';
+        }
+        
+        if (chosenDefense) {
+          const defenseAbility = gameState.ai.character?.abilities.find(
+            a => a.type === 'defense' && a.defenseType === chosenDefense
+          );
+          if (defenseAbility) {
+            toast.info(`🤖 AI chose to use ${chosenDefense} defense!`);
+            get().useDefense('ai', defenseAbility, incomingDamage);
+            return;
+          }
+        }
       }
+      
+      // No defenses available or strategic skip
+      toast.info(`🤖 AI has no defenses available!`);
       get().skipDefense('ai', incomingDamage, ability);
     }
   },
@@ -1006,97 +1087,185 @@ const useAIGameStore = create<AIGameStore>((set, get) => ({
       return;
     }
 
-    // ENHANCED AI DECISION LOGIC - Super Smart AI
+    // ENHANCED AI DECISION LOGIC - Super Smart AI with Stamina Management & Opponent Analysis
     const availableAttacks = availableAbilities.filter(a => a.type === 'attack');
     const availableDefenses = availableAbilities.filter(a => a.type === 'defense');
     
     let chosenAbility: Ability | null = null;
     
-    // Calculate key metrics
+    // ========== ANALYZE AI STATS ==========
     const aiHealthPercent = (gameState.ai.currentHealth / aiCharacter.baseHealth) * 100;
-    const playerHealthPercent = (gameState.player.currentHealth / (gameState.player.character?.baseHealth || 200)) * 100;
-    const healthDifference = aiHealthPercent - playerHealthPercent;
     const aiStaminaPercent = (gameState.ai.stamina / STAMINA.MAX) * 100;
-    const playerStaminaPercent = (gameState.player.stamina / STAMINA.MAX) * 100;
-    
-    // Check current defense inventory
+    const aiStamina = gameState.ai.stamina;
     const currentDefenseInventory = gameState.ai.defenseInventory;
     const totalDefenses = Object.values(currentDefenseInventory).reduce((sum, count) => sum + (count as number), 0);
     
-    // Check player's defense inventory to predict their strategy
+    // ========== ANALYZE OPPONENT STATS ==========
+    const playerCharacter = gameState.player.character;
+    const playerHealthPercent = (gameState.player.currentHealth / (playerCharacter?.baseHealth || 200)) * 100;
+    const playerStaminaPercent = (gameState.player.stamina / STAMINA.MAX) * 100;
+    const playerStamina = gameState.player.stamina;
     const playerDefenses = Object.values(gameState.player.defenseInventory).reduce((sum, count) => sum + (count as number), 0);
+    const healthDifference = aiHealthPercent - playerHealthPercent;
+    const staminaDifference = aiStamina - playerStamina;
     
-    // Check cooldowns - prioritize attacks that are available
-    const highestAttackOnCooldown = gameState.ai.abilityCooldowns[availableAttacks.find(a => a.value === 35)?.id || ''] > 0;
+    // ========== STAMINA MANAGEMENT ==========
+    // Reserve at least 10 stamina for a defense ability (defense costs 10)
+    const DEFENSE_STAMINA_COST = 10;
+    const reservedStaminaForDefense = DEFENSE_STAMINA_COST;
+    const usableStaminaForAttacks = aiStamina - reservedStaminaForDefense;
     
-    // STRATEGY 1: Critical Health Defense (< 25% health) - HIGH PRIORITY
-    if (aiHealthPercent < 25 && availableDefenses.length > 0 && totalDefenses < 2) {
+    // Filter attacks that can be used while reserving stamina for defense
+    const attacksWithReservedStamina = availableAttacks.filter(attack => {
+      const attackCost = getStaminaCost(attack);
+      return attackCost <= usableStaminaForAttacks;
+    });
+    
+    // ========== STRATEGIC DECISION MAKING ==========
+    
+    // PRIORITY 1: CRITICAL - Always maintain at least 1 defense if possible
+    // If AI has no defenses and can afford one, prioritize getting defense
+    if (totalDefenses === 0 && availableDefenses.length > 0 && aiStamina >= DEFENSE_STAMINA_COST) {
       const defenseToAdd = availableDefenses.find(def => !currentDefenseInventory[def.defenseType || '']);
       if (defenseToAdd) {
         chosenAbility = defenseToAdd;
       }
     }
-    // STRATEGY 2: Player is about to win (< 20% health remaining) - URGENT DEFENSE
-    else if (aiHealthPercent < 20 && playerHealthPercent > 50 && availableDefenses.length > 0 && totalDefenses < 2) {
+    // PRIORITY 2: CRITICAL - If stamina is very low (< 20), only use defense or very cheap attacks
+    else if (aiStamina < 20 && availableDefenses.length > 0 && totalDefenses < 2) {
+      const defenseToAdd = availableDefenses.find(def => !currentDefenseInventory[def.defenseType || '']);
+      if (defenseToAdd) {
+        chosenAbility = defenseToAdd;
+      } else if (attacksWithReservedStamina.length > 0) {
+        // Use cheapest attack that still leaves room for defense
+        const sortedCheapAttacks = [...attacksWithReservedStamina].sort((a, b) => getStaminaCost(a) - getStaminaCost(b));
+        chosenAbility = sortedCheapAttacks[0];
+      }
+    }
+    // PRIORITY 3: WIN CONDITION - Player is very low health (< 25%) and can be finished
+    else if (playerHealthPercent < 25 && availableAttacks.length > 0) {
+      // Calculate if any attack can kill the player
+      const playerCurrentHealth = gameState.player.currentHealth;
+      const sortedAttacks = [...availableAttacks].sort((a, b) => b.value - a.value);
+      
+      // Check if highest attack can finish (considering max damage range: base + 5)
+      for (const attack of sortedAttacks) {
+        const maxPossibleDamage = attack.value + 5; // Max damage from range
+        if (maxPossibleDamage >= playerCurrentHealth) {
+          // This attack can potentially kill - use it if stamina allows
+          if (getStaminaCost(attack) <= usableStaminaForAttacks || aiStamina >= getStaminaCost(attack)) {
+            chosenAbility = attack;
+            break;
+          }
+        }
+      }
+      
+      // If no single attack can kill, use highest available
+      if (!chosenAbility && attacksWithReservedStamina.length > 0) {
+        chosenAbility = sortedAttacks.find(a => attacksWithReservedStamina.includes(a)) || sortedAttacks[0];
+      } else if (!chosenAbility && availableAttacks.length > 0) {
+        // Desperate move - use attack even if it depletes all stamina
+        chosenAbility = sortedAttacks[0];
+      }
+    }
+    // PRIORITY 4: DEFENSIVE - AI is low health (< 30%) - prioritize defense
+    else if (aiHealthPercent < 30 && availableDefenses.length > 0 && totalDefenses < 2) {
       const defenseToAdd = availableDefenses.find(def => !currentDefenseInventory[def.defenseType || '']);
       if (defenseToAdd) {
         chosenAbility = defenseToAdd;
       }
     }
-    // STRATEGY 3: Player has many defenses - use high damage to break through
-    else if (playerDefenses >= 2 && availableAttacks.length > 0) {
-      const sortedAttacks = [...availableAttacks].sort((a, b) => b.value - a.value);
-      // Use highest available attack to break through defenses
+    // PRIORITY 5: OPPONENT ANALYSIS - Player has many defenses (2) - use LOW damage to break through
+    // Strategy: Use cheap attacks to waste opponent's defenses, then use high damage when they're gone
+    else if (playerDefenses >= 2 && attacksWithReservedStamina.length > 0) {
+      // Use LOWEST damage attack to waste opponent's defenses economically
+      const sortedAttacks = [...attacksWithReservedStamina].sort((a, b) => a.value - b.value);
+      chosenAbility = sortedAttacks[0]; // Use cheapest/lowest damage attack
+    }
+    // PRIORITY 6: STAMINA MANAGEMENT - Low stamina (< 40) - use cheaper attacks and maintain defense
+    else if (aiStamina < 40 && attacksWithReservedStamina.length > 0) {
+      // Use cheaper attacks to conserve stamina while maintaining defense reserve
+      const sortedAttacks = [...attacksWithReservedStamina].sort((a, b) => getStaminaCost(a) - getStaminaCost(b));
       chosenAbility = sortedAttacks[0];
     }
-    // STRATEGY 4: AI is winning significantly (> 30% health advantage) - aggressive play
-    else if (healthDifference > 30 && aiStaminaPercent > 50 && availableAttacks.length > 0) {
-      const sortedAttacks = [...availableAttacks].sort((a, b) => b.value - a.value);
-      // Use highest damage attack to finish player
+    // PRIORITY 7: AGGRESSIVE - AI is winning significantly (> 30% health advantage) and has good stamina
+    else if (healthDifference > 30 && aiStaminaPercent > 60 && attacksWithReservedStamina.length > 0) {
+      const sortedAttacks = [...attacksWithReservedStamina].sort((a, b) => b.value - a.value);
       chosenAbility = sortedAttacks[0];
     }
-    // STRATEGY 5: Player is low on health (< 30%) - finish them off
-    else if (playerHealthPercent < 30 && availableAttacks.length > 0) {
-      const sortedAttacks = [...availableAttacks].sort((a, b) => b.value - a.value);
-      // Use highest available attack to finish
+    // PRIORITY 8: OPPONENT ANALYSIS - Player is low on stamina - pressure them
+    else if (playerStaminaPercent < 30 && attacksWithReservedStamina.length > 0) {
+      // Player is low on stamina, they'll struggle to defend - use high damage
+      const sortedAttacks = [...attacksWithReservedStamina].sort((a, b) => b.value - a.value);
       chosenAbility = sortedAttacks[0];
     }
-    // STRATEGY 6: AI is losing (< 40% health) but player is also low - aggressive
-    else if (aiHealthPercent < 40 && playerHealthPercent < 50 && availableAttacks.length > 0) {
-      const sortedAttacks = [...availableAttacks].sort((a, b) => b.value - a.value);
-      // Use highest damage to try to win
-      chosenAbility = sortedAttacks[0];
-    }
-    // STRATEGY 7: Stamina management - if low stamina, use weaker attacks to conserve
-    else if (aiStaminaPercent < 30 && availableAttacks.length > 0) {
-      const sortedAttacks = [...availableAttacks].sort((a, b) => a.value - b.value);
-      // Use weakest attack to conserve stamina
-      chosenAbility = sortedAttacks[0];
-    }
-    // STRATEGY 8: Highest attack on cooldown - use next best
-    else if (highestAttackOnCooldown && availableAttacks.length > 1) {
-      const sortedAttacks = [...availableAttacks].sort((a, b) => b.value - a.value);
-      // Skip highest (on cooldown), use second highest
-      chosenAbility = sortedAttacks[1] || sortedAttacks[0];
-    }
-    // STRATEGY 9: Build defense inventory when health is moderate (30-60%)
-    else if (aiHealthPercent >= 30 && aiHealthPercent <= 60 && availableDefenses.length > 0 && totalDefenses < 2 && Math.random() < 0.4) {
-      const defenseToAdd = availableDefenses.find(def => !currentDefenseInventory[def.defenseType || '']);
-      if (defenseToAdd) {
-        chosenAbility = defenseToAdd;
+    // PRIORITY 9: DEFENSIVE - Build defense inventory when health is moderate (30-70%) and defenses are low
+    else if (aiHealthPercent >= 30 && aiHealthPercent <= 70 && totalDefenses < 2 && availableDefenses.length > 0) {
+      // Only build defense if we have enough stamina buffer
+      if (aiStamina >= 30) { // Ensure we have enough stamina after defense
+        const defenseToAdd = availableDefenses.find(def => !currentDefenseInventory[def.defenseType || '']);
+        if (defenseToAdd) {
+          chosenAbility = defenseToAdd;
+        }
       }
     }
-    // STRATEGY 10: Default - use highest damage attack available
+    // PRIORITY 10: COOLDOWN MANAGEMENT - Highest attack on cooldown - use next best
+    else if (attacksWithReservedStamina.length > 1) {
+      const highestAttack = attacksWithReservedStamina.find(a => a.value === 35);
+      const highestAttackOnCooldown = highestAttack && gameState.ai.abilityCooldowns[highestAttack.id] > 0;
+      
+      if (highestAttackOnCooldown) {
+        const sortedAttacks = [...attacksWithReservedStamina].sort((a, b) => b.value - a.value);
+        // Skip highest (on cooldown), use second highest
+        chosenAbility = sortedAttacks.find(a => a.value !== 35) || sortedAttacks[0];
+      } else {
+        // No cooldown, use highest available
+        const sortedAttacks = [...attacksWithReservedStamina].sort((a, b) => b.value - a.value);
+        chosenAbility = sortedAttacks[0];
+      }
+    }
+    // PRIORITY 11: DEFAULT - Use highest damage attack while maintaining defense reserve
+    else if (attacksWithReservedStamina.length > 0) {
+      const sortedAttacks = [...attacksWithReservedStamina].sort((a, b) => b.value - a.value);
+      chosenAbility = sortedAttacks[0];
+    }
+    // PRIORITY 12: FALLBACK - If we can't maintain defense reserve, use best available attack
     else if (availableAttacks.length > 0) {
+      // Desperate situation - use attack even if it means no stamina for defense
       const sortedAttacks = [...availableAttacks].sort((a, b) => b.value - a.value);
       chosenAbility = sortedAttacks[0];
     }
-    // STRATEGY 11: Fallback to defense if no attacks available
+    // PRIORITY 13: LAST RESORT - Use defense if no attacks available or if we need to build defense
     else if (availableDefenses.length > 0) {
-      chosenAbility = availableDefenses[0];
+      // Try to add a new defense type if we don't have 2 yet
+      if (totalDefenses < 2) {
+        const defenseToAdd = availableDefenses.find(def => !currentDefenseInventory[def.defenseType || '']);
+        if (defenseToAdd) {
+          chosenAbility = defenseToAdd;
+        } else {
+          // Already have this defense type, but use it anyway if it's the only option
+          chosenAbility = availableDefenses[0];
+        }
+      } else {
+        // Already have 2 defenses, but if no attacks available, use defense anyway
+        chosenAbility = availableDefenses[0];
+      }
     }
 
     if (!chosenAbility) {
+      console.error('AI decision logic failed - no ability chosen:', {
+        availableAbilities: availableAbilities.length,
+        availableAttacks: availableAttacks.length,
+        availableDefenses: availableDefenses.length,
+        attacksWithReservedStamina: attacksWithReservedStamina.length,
+        aiStamina,
+        aiHealthPercent,
+        playerHealthPercent,
+        totalDefenses,
+        playerDefenses,
+        aiStaminaPercent,
+        playerStaminaPercent
+      });
       toast.error('AI could not choose an ability!');
       return;
     }
