@@ -15,7 +15,7 @@ import { db } from '@/config/firebase';
 import { Character, Ability } from '@/lib/characters';
 import { toast } from 'react-toastify';
 import { Timestamp } from 'firebase/firestore';
-import { getCharacterActivePowerups, getContractCharacterIdFromString } from '@/lib/contractUtils';
+import { getCharacterActivePowerups, getContractCharacterIdFromString, encodeGameResult, GameResultData } from '@/lib/contractUtils';
 import { 
   getRandomDamageInRange, 
   getStaminaCost, 
@@ -602,7 +602,7 @@ const useOnlineGameStore = create<OnlineGameStore>((set, get) => ({
       const player1Character = gameState.player1.character?.nickname || 'Unknown';
       const player2Character = gameState.player2.character?.nickname || 'Unknown';
       
-      console.log('🎮 PvP Game Ended:', {
+      const gameResult: GameResultData = {
         gameID: roomId,
         player1Address: gameState.player1.id || '',
         player2Address: gameState.player2.id || '',
@@ -615,7 +615,18 @@ const useOnlineGameStore = create<OnlineGameStore>((set, get) => ({
         loserXP: loserXP,
         player1Character: player1Character,
         player2Character: player2Character
-      });
+      };
+      
+      console.log('🎮 PvP Game Ended:', gameResult);
+      
+      // Encode game result for smart contract
+      try {
+        const encodedData = encodeGameResult(gameResult);
+        console.log('📦 Encoded Game Result (for smart contract):', encodedData);
+        // TODO: Send encodedData to smart contract
+      } catch (error) {
+        console.error('Error encoding game result:', error);
+      }
     }
 
     await updateDoc(roomRef, updateData);
@@ -736,7 +747,7 @@ const useOnlineGameStore = create<OnlineGameStore>((set, get) => ({
       const player1Character = gameState.player1.character?.nickname || 'Unknown';
       const player2Character = gameState.player2.character?.nickname || 'Unknown';
       
-      console.log('🎮 PvP Game Ended:', {
+      const gameResult: GameResultData = {
         gameID: roomId,
         player1Address: gameState.player1.id || '',
         player2Address: gameState.player2.id || '',
@@ -749,7 +760,18 @@ const useOnlineGameStore = create<OnlineGameStore>((set, get) => ({
         loserXP: loserXP,
         player1Character: player1Character,
         player2Character: player2Character
-      });
+      };
+      
+      console.log('🎮 PvP Game Ended:', gameResult);
+      
+      // Encode game result for smart contract
+      try {
+        const encodedData = encodeGameResult(gameResult);
+        console.log('📦 Encoded Game Result (for smart contract):', encodedData);
+        // TODO: Send encodedData to smart contract
+      } catch (error) {
+        console.error('Error encoding game result:', error);
+      }
     } else if (defendingPlayerNewHealth <= 0) {
       updateData["gameState.gameStatus"] = "finished";
       updateData["status"] = "finished";
@@ -767,7 +789,7 @@ const useOnlineGameStore = create<OnlineGameStore>((set, get) => ({
       const player1Character = gameState.player1.character?.nickname || 'Unknown';
       const player2Character = gameState.player2.character?.nickname || 'Unknown';
       
-      console.log('🎮 PvP Game Ended:', {
+      const gameResult: GameResultData = {
         gameID: roomId,
         player1Address: gameState.player1.id || '',
         player2Address: gameState.player2.id || '',
@@ -780,7 +802,18 @@ const useOnlineGameStore = create<OnlineGameStore>((set, get) => ({
         loserXP: loserXP,
         player1Character: player1Character,
         player2Character: player2Character
-      });
+      };
+      
+      console.log('🎮 PvP Game Ended:', gameResult);
+      
+      // Encode game result for smart contract
+      try {
+        const encodedData = encodeGameResult(gameResult);
+        console.log('📦 Encoded Game Result (for smart contract):', encodedData);
+        // TODO: Send encodedData to smart contract
+      } catch (error) {
+        console.error('Error encoding game result:', error);
+      }
     }
 
     await updateDoc(roomRef, updateData);
