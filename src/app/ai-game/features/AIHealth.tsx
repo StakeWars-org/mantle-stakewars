@@ -19,6 +19,7 @@ export interface AIGameState {
     currentHealth: number;
     stamina: number;
     abilityCooldowns: { [abilityId: string]: number };
+    defenseCooldowns: { [defenseType: string]: number };
     defenseInventory: DefenseInventory;
     activeBuffs?: Buff[];
     skippedDefense?: {
@@ -32,6 +33,7 @@ export interface AIGameState {
     currentHealth: number;
     stamina: number;
     abilityCooldowns: { [abilityId: string]: number };
+    defenseCooldowns: { [defenseType: string]: number };
     defenseInventory: DefenseInventory;
     activeBuffs?: Buff[];
     skippedDefense?: {
