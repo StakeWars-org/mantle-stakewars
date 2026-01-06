@@ -503,13 +503,26 @@ const useOnlineGameStore = create<OnlineGameStore>((set, get) => ({
     // Regenerate stamina (+15 per turn)
     const regeneratedStamina = Math.min(STAMINA.MAX, newStamina + STAMINA.REGENERATION_PER_TURN);
 
-    // Decrease cooldowns
+    // Decrease cooldowns for the active player (they just had their turn)
     const newCooldowns = { ...gameState[player]?.abilityCooldowns || {} };
+    const newDefenseCooldowns = { ...gameState[player]?.defenseCooldowns || {} };
+    
+    // Decrease ability cooldowns
     Object.keys(newCooldowns).forEach(abilityId => {
       if (newCooldowns[abilityId] > 0) {
         newCooldowns[abilityId]--;
         if (newCooldowns[abilityId] === 0) {
           delete newCooldowns[abilityId];
+        }
+      }
+    });
+    
+    // Decrease defense cooldowns
+    Object.keys(newDefenseCooldowns).forEach(defType => {
+      if (newDefenseCooldowns[defType] > 0) {
+        newDefenseCooldowns[defType]--;
+        if (newDefenseCooldowns[defType] === 0) {
+          delete newDefenseCooldowns[defType];
         }
       }
     });
@@ -519,6 +532,7 @@ const useOnlineGameStore = create<OnlineGameStore>((set, get) => ({
         currentDefenseCount + 1,
       [`gameState.${player}.stamina`]: regeneratedStamina,
       [`gameState.${player}.abilityCooldowns`]: newCooldowns,
+      [`gameState.${player}.defenseCooldowns`]: newDefenseCooldowns,
       "gameState.currentTurn": nextPlayer,
     });
   },
