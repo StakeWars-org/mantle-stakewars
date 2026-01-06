@@ -41,79 +41,128 @@ export default function OnboardingDialog() {
       return;
     }
 
+    const step2CompleteKey = `onboarding-step2-${walletAddress}`;
+    const balanceStorageKey = `onboarding-balance-${walletAddress}`;
+    const lastCheckKey = `onboarding-balance-last-check-${walletAddress}`;
+    const lastCheckTime = localStorage.getItem(lastCheckKey);
+    const now = Date.now();
+    
+    // Don't check if:
+    // 1. Not forcing refresh AND
+    // 2. Already marked complete AND
+    // 3. Last check was less than 5 minutes ago
+    if (!forceRefresh && localStorage.getItem(step2CompleteKey) === 'true' && 
+        lastCheckTime && (now - parseInt(lastCheckTime)) < 300000) {
+      const cachedBalance = localStorage.getItem(balanceStorageKey);
+      if (cachedBalance) {
+        setHasBalance(true);
+        setTokenBalance(parseFloat(cachedBalance) || 0);
+        console.log('[Onboarding] Using cached balance (checked recently)');
+        return;
+      }
+    }
+
     setCheckingBalance(true);
 
-    try {
-      const step2CompleteKey = `onboarding-step2-${walletAddress}`;
-      const balanceStorageKey = `onboarding-balance-${walletAddress}`;
-      
-      // Always refetch balance data when checking (manual refresh)
-      let currentBalanceData = balanceData;
-      if (refetchBalance) {
-        try {
-          console.log('Refreshing balance data...');
-          const result = await refetchBalance();
-          currentBalanceData = result.data || balanceData;
-          console.log('Balance data refetched:', currentBalanceData);
-        } catch (error) {
-          console.error('Error refetching balance:', error);
-          currentBalanceData = balanceData;
-        }
-      }
+    // Retry logic for balance check - fetch multiple times
+    const maxRetries = 3;
+    let retryCount = 0;
+    let hasTokenBalance = false;
+    let balanceValue = 0;
+    let currentBalanceData = balanceData;
 
-      let hasTokenBalance = false;
-      let balanceValue = 0;
-      
-      if (currentBalanceData !== undefined && currentBalanceData !== null) {
-        if (currentBalanceData.formatted !== undefined && currentBalanceData.formatted !== null) {
-          balanceValue = parseFloat(currentBalanceData.formatted) || 0;
-        } else if (currentBalanceData.value !== undefined && currentBalanceData.value !== null) {
-          balanceValue = Number(currentBalanceData.value) / 1e18;
+    while (retryCount < maxRetries) {
+      try {
+        console.log(`[Balance Check] Attempt ${retryCount + 1}/${maxRetries} - Refreshing balance data...`);
+        
+        // Always refetch balance data when checking (with retry)
+        if (refetchBalance) {
+          try {
+            const result = await Promise.race([
+              refetchBalance(),
+              new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Balance refetch timeout')), 10000)
+              )
+            ]);
+            currentBalanceData = (result as any)?.data || balanceData;
+            console.log(`[Balance Check] Balance data refetched (attempt ${retryCount + 1}):`, currentBalanceData);
+          } catch (error) {
+            console.error(`[Balance Check] Error refetching balance (attempt ${retryCount + 1}):`, error);
+            // Fall back to existing balanceData
+            currentBalanceData = balanceData;
+          }
         }
-        
-        hasTokenBalance = balanceValue > 0;
-        
-        // Store in localStorage (persists across sessions)
-        if (hasTokenBalance) {
-          localStorage.setItem(step2CompleteKey, 'true');
-          localStorage.setItem(balanceStorageKey, balanceValue.toString());
-          console.log(`Step 2 complete: Balance ${balanceValue} ${currentBalanceData?.symbol || 'MNT'} (saved to localStorage)`);
-        } else {
-          localStorage.removeItem(step2CompleteKey);
-          localStorage.removeItem(balanceStorageKey);
-          console.log(`Step 2 incomplete: Balance is zero`);
-        }
-      } else {
-        // If balanceData is not available, use cached value from localStorage
-        const cachedBalance = localStorage.getItem(balanceStorageKey);
-        const wasStep2Complete = localStorage.getItem(step2CompleteKey) === 'true';
-        
-        if (cachedBalance !== null && wasStep2Complete) {
-          balanceValue = parseFloat(cachedBalance) || 0;
+
+        // Parse balance value
+        if (currentBalanceData !== undefined && currentBalanceData !== null) {
+          if (currentBalanceData.formatted !== undefined && currentBalanceData.formatted !== null) {
+            balanceValue = parseFloat(currentBalanceData.formatted) || 0;
+          } else if (currentBalanceData.value !== undefined && currentBalanceData.value !== null) {
+            balanceValue = Number(currentBalanceData.value) / 1e18;
+          }
+          
           hasTokenBalance = balanceValue > 0;
-          console.log(`Step 2: Using cached balance ${balanceValue} from localStorage`);
+          
+          // Store in localStorage (persists across sessions)
+          if (hasTokenBalance) {
+            localStorage.setItem(step2CompleteKey, 'true');
+            localStorage.setItem(balanceStorageKey, balanceValue.toString());
+            localStorage.setItem(lastCheckKey, now.toString());
+            console.log(`[Balance Check] ✅ Step 2 complete: Balance ${balanceValue} ${currentBalanceData?.symbol || 'MNT'}`);
+            break; // Success, exit retry loop
+          } else {
+            localStorage.removeItem(step2CompleteKey);
+            localStorage.removeItem(balanceStorageKey);
+            localStorage.setItem(lastCheckKey, now.toString());
+            console.log(`[Balance Check] ⚠️ Step 2 incomplete: Balance is zero`);
+            break; // No balance, but check succeeded
+          }
         } else {
-          hasTokenBalance = false;
-          balanceValue = 0;
-          console.log(`Step 2: No balance data available and no cache found`);
+          // If balanceData is not available, use cached value from localStorage
+          const cachedBalance = localStorage.getItem(balanceStorageKey);
+          const wasStep2Complete = localStorage.getItem(step2CompleteKey) === 'true';
+          
+          if (cachedBalance !== null && wasStep2Complete) {
+            balanceValue = parseFloat(cachedBalance) || 0;
+            hasTokenBalance = balanceValue > 0;
+            console.log(`[Balance Check] 📦 Using cached balance ${balanceValue} from localStorage`);
+            break; // Use cache, exit retry loop
+          } else {
+            // No data available, retry if not last attempt
+            if (retryCount < maxRetries - 1) {
+              console.log(`[Balance Check] ⏳ No balance data, retrying in 1s...`);
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              retryCount++;
+              continue;
+            } else {
+              hasTokenBalance = false;
+              balanceValue = 0;
+              console.log(`[Balance Check] ❌ No balance data available after ${maxRetries} attempts`);
+              break;
+            }
+          }
+        }
+      } catch (error) {
+        console.error(`[Balance Check] Error on attempt ${retryCount + 1}:`, error);
+        if (retryCount < maxRetries - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          retryCount++;
+          continue;
+        } else {
+          // Final fallback to cache
+          const step2Complete = localStorage.getItem(step2CompleteKey) === 'true';
+          const cachedBalance = localStorage.getItem(balanceStorageKey);
+          hasTokenBalance = step2Complete && cachedBalance !== null;
+          balanceValue = cachedBalance ? parseFloat(cachedBalance) || 0 : 0;
+          console.log(`[Balance Check] 🔄 Using cached value after ${maxRetries} failed attempts`);
+          break;
         }
       }
-      
-      setHasBalance(hasTokenBalance);
-      setTokenBalance(balanceValue);
-    } catch (error) {
-      console.error("Error checking balance:", error);
-      const step2CompleteKey = `onboarding-step2-${walletAddress}`;
-      const step2Complete = localStorage.getItem(step2CompleteKey) === 'true';
-      setHasBalance(step2Complete);
-      // Use cached balance value if available
-      const cachedBalance = localStorage.getItem(`onboarding-balance-${walletAddress}`);
-      if (cachedBalance) {
-        setTokenBalance(parseFloat(cachedBalance) || 0);
-      }
-    } finally {
-      setCheckingBalance(false);
     }
+    
+    setHasBalance(hasTokenBalance);
+    setTokenBalance(balanceValue);
+    setCheckingBalance(false);
   }, [walletAddress, authenticated, balanceData, refetchBalance]);
 
   // Separate function to check characters
@@ -122,12 +171,26 @@ export default function OnboardingDialog() {
       return;
     }
 
+    const step3CompleteKey = `onboarding-step3-${walletAddress}`;
+    const lastCheckKey = `onboarding-character-last-check-${walletAddress}`;
+    const lastCheckTime = localStorage.getItem(lastCheckKey);
+    const now = Date.now();
+    const step3Complete = localStorage.getItem(step3CompleteKey) === 'true';
+    
+    // Don't check if:
+    // 1. Not forcing refresh AND
+    // 2. Already marked complete AND
+    // 3. Last check was less than 5 minutes ago
+    if (!forceRefresh && step3Complete && 
+        lastCheckTime && (now - parseInt(lastCheckTime)) < 300000) {
+      setHasCharacter(true);
+      console.log('[Onboarding] Using cached character status (checked recently)');
+      return;
+    }
+
     setCheckingCharacter(true);
 
     try {
-      const step3CompleteKey = `onboarding-step3-${walletAddress}`;
-      const step3Complete = sessionStorage.getItem(step3CompleteKey) === 'true';
-      
       // Always check if forcing refresh, otherwise check if not already complete
       if (forceRefresh || !step3Complete) {
         try {
@@ -141,36 +204,39 @@ export default function OnboardingDialog() {
           const userHasCharacter = ownedCharacters.length > 0;
           
           if (userHasCharacter) {
-            sessionStorage.setItem(step3CompleteKey, 'true');
-            console.log(`Step 3: Found ${ownedCharacters.length} character(s) - marked complete`);
+            localStorage.setItem(step3CompleteKey, 'true');
+            localStorage.setItem(lastCheckKey, now.toString());
+            console.log(`[Character Check] ✅ Step 3: Found ${ownedCharacters.length} character(s) - marked complete`);
             setHasCharacter(true);
           } else {
-            sessionStorage.removeItem(step3CompleteKey);
-            console.log(`Step 3: No characters found - marked incomplete`);
+            localStorage.removeItem(step3CompleteKey);
+            localStorage.setItem(lastCheckKey, now.toString());
+            console.log(`[Character Check] ⚠️ Step 3: No characters found - marked incomplete`);
             setHasCharacter(false);
           }
         } catch (error) {
-          console.error("Error fetching characters:", error);
+          console.error("[Character Check] Error fetching characters:", error);
+          localStorage.setItem(lastCheckKey, now.toString()); // Update timestamp even on error
+          
           if (forceRefresh) {
             setHasCharacter(false);
-            console.log(`Step 3: Force refresh failed - marked incomplete`);
+            console.log(`[Character Check] ❌ Force refresh failed - marked incomplete`);
           } else if (step3Complete) {
             setHasCharacter(true);
-            console.log(`Step 3: Check failed, but using cached completion status`);
+            console.log(`[Character Check] 🔄 Check failed, but using cached completion status`);
           } else {
             setHasCharacter(false);
-            console.log(`Step 3: Check failed and no cached completion found`);
+            console.log(`[Character Check] ❌ Check failed and no cached completion found`);
           }
         }
       } else {
         setHasCharacter(true);
-        console.log(`Step 3: Using cached completion status (character exists)`);
+        console.log(`[Character Check] 📦 Using cached completion status (character exists)`);
       }
     } catch (error) {
-      console.error("Error checking character:", error);
-      const step3CompleteKey = `onboarding-step3-${walletAddress}`;
-      const step3Complete = sessionStorage.getItem(step3CompleteKey) === 'true';
-      setHasCharacter(step3Complete);
+      console.error("[Character Check] Error checking character:", error);
+      const cachedStep3Complete = localStorage.getItem(step3CompleteKey) === 'true';
+      setHasCharacter(cachedStep3Complete);
     } finally {
       setCheckingCharacter(false);
     }
@@ -242,61 +308,85 @@ export default function OnboardingDialog() {
     }
   }, [walletAddress, authenticated, ready]);
 
-  // Separate useEffect for character check - runs independently
+  // Separate useEffect for character check - runs independently with better caching
   useEffect(() => {
     if (ready && authenticated && walletAddress) {
-      // Small delay to ensure wallet is fully initialized
-      const timer = setTimeout(() => {
-        checkCharacter(false);
-      }, 500);
-      return () => clearTimeout(timer);
+      const step3CompleteKey = `onboarding-step3-${walletAddress}`;
+      const lastCheckKey = `onboarding-character-last-check-${walletAddress}`;
+      const lastCheckTime = localStorage.getItem(lastCheckKey);
+      const now = Date.now();
+      
+      // Only check if:
+      // 1. Not already marked complete, OR
+      // 2. Last check was more than 5 minutes ago (300000ms)
+      const shouldCheck = !localStorage.getItem(step3CompleteKey) || 
+                         !lastCheckTime || 
+                         (now - parseInt(lastCheckTime)) > 300000; // 5 minutes
+      
+      if (shouldCheck) {
+        // Small delay to ensure wallet is fully initialized
+        const timer = setTimeout(() => {
+          checkCharacter(false);
+          localStorage.setItem(lastCheckKey, now.toString());
+        }, 1000); // Increased delay for better performance
+        return () => clearTimeout(timer);
+      } else {
+        // Use cached value
+        const cachedComplete = localStorage.getItem(step3CompleteKey) === 'true';
+        setHasCharacter(cachedComplete);
+        console.log('[Onboarding] Using cached character status (checked recently)');
+      }
     }
   }, [walletAddress, authenticated, ready, checkCharacter]);
 
-  // Check profile and determine dialog visibility
+  // Check profile and determine dialog visibility - optimized to reduce re-renders
   useEffect(() => {
-    if (ready && authenticated && walletAddress) {
-      // Clean up old generic onboarding key (migration)
-      const oldKey = sessionStorage.getItem('onboarding-complete');
-      if (oldKey) {
-        sessionStorage.removeItem('onboarding-complete');
-      }
-      
-      // Check profile (synchronous)
-      const userHasProfile = !!(user && user.id);
-      setHasProfile(userHasProfile);
-      
-      // Get step completion status
-      const step2CompleteKey = `onboarding-step2-${walletAddress}`;
-      const step3CompleteKey = `onboarding-step3-${walletAddress}`;
-      const onboardingCompleteKey = `onboarding-complete-${walletAddress}`;
-      
-      // Balance is stored in localStorage, character in sessionStorage
-      const step2Complete = localStorage.getItem(step2CompleteKey) === 'true';
-      const step3Complete = sessionStorage.getItem(step3CompleteKey) === 'true';
-      
-      // Don't show on task pages
-      if (pathname === '/mint-character') {
-        setIsOpen(false);
-        return;
-      }
-      
-      // Determine if dialog should show
-      if (userHasProfile && step2Complete && step3Complete) {
-        sessionStorage.setItem(onboardingCompleteKey, 'true');
-        setIsOpen(false);
-      } else {
-        sessionStorage.removeItem(onboardingCompleteKey);
-        const shouldShow = !userHasProfile || !step2Complete || !step3Complete;
-        setIsOpen(shouldShow);
-      }
-    } else {
+    if (!ready || !authenticated || !walletAddress) {
       setIsOpen(false);
       setHasProfile(false);
+      return;
+    }
+
+    // Clean up old generic onboarding key (migration)
+    const oldKey = sessionStorage.getItem('onboarding-complete');
+    if (oldKey) {
+      sessionStorage.removeItem('onboarding-complete');
+    }
+    
+    // Check profile (synchronous)
+    const userHasProfile = !!(user && user.id);
+    setHasProfile(userHasProfile);
+    
+    // Get step completion status - use localStorage for consistency
+    const step2CompleteKey = `onboarding-step2-${walletAddress}`;
+    const step3CompleteKey = `onboarding-step3-${walletAddress}`;
+    const onboardingCompleteKey = `onboarding-complete-${walletAddress}`;
+    
+    // Both balance and character use localStorage now
+    const step2Complete = localStorage.getItem(step2CompleteKey) === 'true';
+    const step3Complete = localStorage.getItem(step3CompleteKey) === 'true';
+    
+    // Don't show on task pages
+    if (pathname === '/mint-character') {
+      setIsOpen(false);
+      return;
+    }
+    
+    // Use actual state values for more reliable check
+    const allComplete = userHasProfile && hasBalance && hasCharacter;
+    
+    // Determine if dialog should show - only update if state actually changed
+    if (allComplete) {
+      localStorage.setItem(onboardingCompleteKey, 'true');
+      setIsOpen(false);
+    } else {
+      localStorage.removeItem(onboardingCompleteKey);
+      const shouldShow = !userHasProfile || !hasBalance || !hasCharacter;
+      setIsOpen(shouldShow);
     }
   }, [walletAddress, ready, authenticated, user, pathname, hasBalance, hasCharacter]);
 
-  // Mark when on task pages and check completion when leaving
+  // Mark when on task pages and check completion when leaving - optimized
   useEffect(() => {
     // Note: Faucet is now external (hackquest.io), so we only track mint-character
     if (pathname === '/mint-character') {
@@ -306,25 +396,52 @@ export default function OnboardingDialog() {
       const wasOnTaskPage = sessionStorage.getItem('was-on-task-page');
       if (wasOnTaskPage && walletAddress && authenticated) {
         sessionStorage.removeItem('was-on-task-page');
-        // Small delay to ensure balance/character data has updated, then check both independently
-        setTimeout(() => {
-          checkBalance(true);
-          checkCharacter(true);
-        }, 2000);
+        
+        // Only check if not already complete to avoid unnecessary calls
+        const step2CompleteKey = `onboarding-step2-${walletAddress}`;
+        const step3CompleteKey = `onboarding-step3-${walletAddress}`;
+        const step2Complete = localStorage.getItem(step2CompleteKey) === 'true';
+        const step3Complete = localStorage.getItem(step3CompleteKey) === 'true';
+        
+        // Only force refresh if something might have changed
+        if (!step2Complete || !step3Complete) {
+          // Increased delay to ensure balance/character data has updated
+          const timer = setTimeout(() => {
+            if (!step2Complete) checkBalance(true);
+            if (!step3Complete) checkCharacter(true);
+          }, 3000); // Increased delay for better reliability
+          return () => clearTimeout(timer);
+        }
       }
     }
   }, [pathname, walletAddress, authenticated, checkBalance, checkCharacter]);
 
   // Periodic refresh - only runs character check (balance is persisted in localStorage)
+  // Reduced frequency to improve performance
   useEffect(() => {
     if (ready && authenticated && walletAddress) {
-      // Re-check character every 60 seconds (balance is persisted, no need to refetch)
-      const interval = setInterval(() => {
-        checkCharacter(false);
-      }, 60000);
-      return () => clearInterval(interval);
+      const step3CompleteKey = `onboarding-step3-${walletAddress}`;
+      const isComplete = localStorage.getItem(step3CompleteKey) === 'true';
+      
+      // Only set up periodic check if not complete
+      // If complete, no need to keep checking
+      if (!isComplete) {
+        // Re-check character every 5 minutes (300000ms) instead of 60 seconds
+        const interval = setInterval(() => {
+          const lastCheckKey = `onboarding-character-last-check-${walletAddress}`;
+          const lastCheckTime = localStorage.getItem(lastCheckKey);
+          const now = Date.now();
+          
+          // Only check if last check was more than 5 minutes ago
+          if (!lastCheckTime || (now - parseInt(lastCheckTime)) > 300000) {
+            checkCharacter(false);
+            localStorage.setItem(lastCheckKey, now.toString());
+          }
+        }, 300000); // Check every 5 minutes
+        return () => clearInterval(interval);
+      }
     }
-  }, [walletAddress, authenticated, ready, checkCharacter]);
+  }, [walletAddress, authenticated, ready, checkCharacter, hasCharacter]);
 
   if (!ready || !authenticated) return null;
 
