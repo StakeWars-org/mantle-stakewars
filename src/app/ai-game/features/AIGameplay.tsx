@@ -6,11 +6,16 @@ import { Ability } from '@/lib/characters';
 import AIDefenseModal from './AIDefenseModal';
 import AIFirstTurnDiceRoll from './AIFirstTurnDiceRoll';
 import { toast } from 'react-toastify';
-import PlayerHealth from "./PlayerHealth";
-import AIHealth from './AIHealth';
+// OLD COMPONENTS - Commented out but preserved
+// import PlayerHealth from "./PlayerHealth";
+// import AIHealth from './AIHealth';
+// import BattleStoryboard from './BattleStoryboard';
+// NEW ENHANCED COMPONENTS
+import BattleArena from './BattleArena';
+import CombatFeedback from './CombatFeedback';
+import EnhancedBattleStoryboard from './EnhancedBattleStoryboard';
 import AILostMessage from './AILostMessage';
 import AIWonMessage from './AIWonMessage';
-// import BattleStoryboard from './BattleStoryboard';
 import { usePrivy, useWallets } from '@privy-io/react-auth';
 import { useRouter } from 'next/navigation';
 
@@ -160,24 +165,46 @@ export default function AIGameplay() {
   };
 
   return (
-    <div className='w-[95%] lg:w-[707px] relative mx-auto lg:px-0 mt-4'>
-        <AIHealth gameState={gameState} />
-      
-      {/* First Turn Dice Roll - Only shows when game hasn't started */}
-      {(gameState.gameStatus === 'waiting' || gameState.gameStatus === 'character-select') && (
-        <div className="flex flex-col items-center my-[30px] bg-[#3F3F3F] rounded-[10px] p-6 pt-5">
-          <AIFirstTurnDiceRoll />
-        </div>
-      )}
+    <div className='w-[95%] lg:w-[900px] xl:w-[1000px] relative mx-auto lg:px-0 mt-4'>
+      {/* NEW ENHANCED BATTLE ARENA LAYOUT */}
+      <div className="relative">
+        {/* First Turn Dice Roll - Only shows when game hasn't started */}
+        {(gameState.gameStatus === 'waiting' || gameState.gameStatus === 'character-select') && (
+          <div className="flex flex-col items-center my-[30px] bg-[#3F3F3F] rounded-[10px] p-6 pt-5">
+            <AIFirstTurnDiceRoll />
+          </div>
+        )}
 
-      {/* <div className="flex flex-col items-center my-[30px] bg-[#3F3F3F] rounded-[10px] p-6 pt-5">
-        <BattleStoryboard />
-      </div> */}
-      
-      <div className="flex flex-col justify-center items-center">
-        <PlayerHealth gameState={gameState} />
+        {/* Enhanced Battle Arena - Side-by-side layout */}
+        {gameState.gameStatus === 'inProgress' && (
+          <>
+            <div className="relative mb-6">
+              <BattleArena gameState={gameState} currentTurn={gameState.currentTurn} />
+              <CombatFeedback gameState={gameState} />
+            </div>
+            
+            {/* Enhanced Battle Storyboard */}
+            <div className="mb-6">
+              <EnhancedBattleStoryboard />
+            </div>
+          </>
+        )}
+
+        {/* OLD LAYOUT - Commented out but preserved */}
+        {/* 
+        <AIHealth gameState={gameState} />
+        
+        <div className="flex flex-col items-center my-[30px] bg-[#3F3F3F] rounded-[10px] p-6 pt-5">
+          <BattleStoryboard />
+        </div>
+        
+        <div className="flex flex-col justify-center items-center">
+          <PlayerHealth gameState={gameState} />
+        </div>
+        */}
       </div>
       
+      {/* Modals and Messages */}
       <div className={`absolute top-0 w-full ${showDefenseModal || showWinner || showLoser ? 'h-full' : ''}`}>
         {showWinner && <AIWonMessage />}
         {showLoser && <AILostMessage onBackToLobby={handleBackToLobby} />}

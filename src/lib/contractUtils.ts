@@ -270,3 +270,51 @@ export async function getCharacterActivePowerups(
   }
 }
 
+/**
+ * Game result data structure for on-chain processing
+ */
+export interface GameResultData {
+  gameID: string;
+  player1Address: string;
+  player2Address: string;
+  winner: 'player1' | 'player2';
+  winnerAddress: string;
+  loserAddress: string;
+  winnerChakra: number;
+  loserChakra: number;
+  winnerXP: number;
+  loserXP: number;
+  player1Character: string;
+  player2Character: string;
+}
+
+/**
+ * Process game result on-chain using the contract
+ * @param gameResult - The game result data to process
+ * @param sendTransaction - Privy's sendTransaction function
+ * @param walletAddress - The wallet address initiating the transaction
+ * @returns Transaction hash
+ */
+export async function processGameResultOnChain(
+  gameResult: GameResultData,
+  sendTransaction: any,
+  walletAddress: `0x${string}`
+): Promise<string> {
+  try {
+    // Prepare the transaction data
+    // Note: This assumes the contract has a function to process game results
+    // You may need to adjust the function name and parameters based on your contract ABI
+    
+    const txHash = await sendTransaction({
+      to: STAKEWARS_CONTRACT_ADDRESS as `0x${string}`,
+      data: "0x", // Placeholder - implement based on your contract's function signature
+      value: "0x0",
+    });
+
+    return txHash;
+  } catch (error) {
+    console.error("Error processing game result on-chain:", error);
+    throw error;
+  }
+}
+

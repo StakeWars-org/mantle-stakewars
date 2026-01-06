@@ -32,7 +32,7 @@ export function getRandomDamageInRange(baseValue: number): { damage: number; isC
  */
 export function getStaminaCost(ability: Ability): number {
   if (ability.type === 'defense') {
-    return 10; // Defense abilities cost 10 stamina
+    return 15; // Defense abilities cost 15 stamina (increased from 10 to prevent spam)
   }
   
   // Attack abilities cost based on damage value
@@ -86,8 +86,22 @@ export function getAvailableAbilities(
 export const STAMINA = {
   MAX: process.env.MAX ? parseInt(process.env.MAX, 10) : 100,
   STARTING: process.env.STARTING ? parseInt(process.env.STARTING, 10) : 100,
-  REGENERATION_PER_TURN: process.env.REGENERATION_PER_TURN ? parseInt(process.env.REGENERATION_PER_TURN, 10) : 8, // Stamina regeneration per turn
+  REGENERATION_PER_TURN: process.env.REGENERATION_PER_TURN ? parseInt(process.env.REGENERATION_PER_TURN, 10) : 12, // Stamina regeneration per turn (balanced at 12)
   CRITICAL_HIT_REWARD: process.env.CRITICAL_HIT_REWARD ? parseInt(process.env.CRITICAL_HIT_REWARD, 10) : 20, // Stamina reward for critical hits
-  COOLDOWN_TURNS: process.env.COOLDOWN_TURNS ? parseInt(process.env.COOLDOWN_TURNS, 10) : 2 // Cooldown for highest attack
+  COOLDOWN_TURNS: process.env.COOLDOWN_TURNS ? parseInt(process.env.COOLDOWN_TURNS, 10) : 2, // Cooldown for highest attack
+  DEFENSE_COOLDOWN_TURNS: 2 // Cooldown for defense types after being used
 };
+
+/**
+ * Get cooldown turns for an attack ability (progressive cooldowns)
+ */
+export function getAttackCooldown(attackValue: number): number {
+  switch (attackValue) {
+    case 20: return 0; // No cooldown for weakest attack
+    case 25: return 1; // 1 turn cooldown
+    case 30: return 2; // 2 turn cooldown
+    case 35: return 3; // 3 turn cooldown for strongest attack
+    default: return 1; // Default 1 turn
+  }
+}
 

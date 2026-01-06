@@ -68,7 +68,12 @@ export default function PlayerAbility({ gameState }: {
         );
         const maxDefensesReached = ability.type === 'defense' && totalDefenses >= 2;
         
-        const canUse = isPlayerTurn && isAvailable && hasEnoughStamina && !onCooldown && !defenseAlreadyInInventory && !maxDefensesReached;
+        // Check if defense type is on cooldown
+        const defenseOnCooldown = ability.type === 'defense' && 
+          ability.defenseType && 
+          (currentPlayer?.defenseCooldowns?.[ability.defenseType] || 0) > 0;
+        
+        const canUse = isPlayerTurn && isAvailable && hasEnoughStamina && !onCooldown && !defenseAlreadyInInventory && !maxDefensesReached && !defenseOnCooldown;
         
         // Calculate damage range for attacks
         const damageRange = ability.type === 'attack' ? calculateDamageRange(ability.value) : null;
@@ -94,6 +99,8 @@ export default function PlayerAbility({ gameState }: {
                   ? `You already have ${ability.defenseType} defense in your inventory!`
                 : maxDefensesReached
                   ? `You already have 2 defenses maximum!`
+                : defenseOnCooldown
+                  ? `${ability.defenseType} defense is on cooldown for ${ability.defenseType ? (currentPlayer.defenseCooldowns?.[ability.defenseType] || 0) : 0} more turn(s)!`
                 : onCooldown 
                   ? `On cooldown for ${currentPlayer.abilityCooldowns[ability.id]} more turn(s)`
                   : !hasEnoughStamina
@@ -113,7 +120,10 @@ export default function PlayerAbility({ gameState }: {
             {onCooldown && (
               <span className="ml-1 text-orange-400">🔒{currentPlayer.abilityCooldowns[ability.id]}</span>
             )}
-            {!onCooldown && (
+            {defenseOnCooldown && ability.defenseType && (
+              <span className="ml-1 text-red-400">⏱️{currentPlayer.defenseCooldowns?.[ability.defenseType] || 0}</span>
+            )}
+            {!onCooldown && !defenseOnCooldown && (
               <span className="ml-1 text-xs text-gray-400">⚡{staminaCost}</span>
             )}
           </button>

@@ -5,6 +5,7 @@ import {
   getRandomDamageInRange, 
   getStaminaCost, 
   getAvailableAbilities,
+  getAttackCooldown,
   STAMINA 
 } from '@/lib/combatUtils';
 import { getCharacterActivePowerups, getContractCharacterIdFromString } from '@/lib/contractUtils';
@@ -41,6 +42,7 @@ interface AIGameState {
     currentHealth: number;
     stamina: number;
     abilityCooldowns: { [abilityId: string]: number };
+    defenseCooldowns: { [defenseType: string]: number }; // Cooldowns for defense types (dodge, block, reflect)
     defenseInventory: DefenseInventory;
     activeBuffs?: Buff[];
     skippedDefense?: {
@@ -54,6 +56,7 @@ interface AIGameState {
     currentHealth: number;
     stamina: number;
     abilityCooldowns: { [abilityId: string]: number };
+    defenseCooldowns: { [defenseType: string]: number }; // Cooldowns for defense types (dodge, block, reflect)
     defenseInventory: DefenseInventory;
     activeBuffs?: Buff[];
     skippedDefense?: {
@@ -81,6 +84,7 @@ const initialAIGameState: AIGameState = {
     currentHealth: 0,
     stamina: STAMINA.STARTING,
     abilityCooldowns: {},
+    defenseCooldowns: {},
     defenseInventory: {} 
   },
   ai: {
@@ -88,6 +92,7 @@ const initialAIGameState: AIGameState = {
     currentHealth: 0,
       stamina: STAMINA.STARTING,
     abilityCooldowns: {},
+    defenseCooldowns: {},
     defenseInventory: {}
   },
   currentTurn: 'player',
@@ -215,6 +220,7 @@ const useAIGameStore = create<AIGameStore>((set, get) => ({
           currentHealth: character.baseHealth,
           stamina: STAMINA.STARTING,
           abilityCooldowns: {},
+          defenseCooldowns: {},
           activeBuffs: activeBuffs
         }
       }
@@ -418,6 +424,9 @@ const useAIGameStore = create<AIGameStore>((set, get) => ({
       }
     }
     
+    // Regenerate stamina for the attacking player (they just had their turn)
+    newStamina = Math.min(STAMINA.MAX, newStamina + STAMINA.REGENERATION_PER_TURN);
+    
     // Decrease all existing cooldowns by 1 first
     const newCooldowns = { ...gameState[attackingPlayer].abilityCooldowns };
     Object.keys(newCooldowns).forEach(abilityId => {
@@ -429,9 +438,10 @@ const useAIGameStore = create<AIGameStore>((set, get) => ({
       }
     });
     
-    // Apply cooldown for highest attack (value 35) after decreasing others
-    if (ability.value === 35) {
-      newCooldowns[ability.id] = STAMINA.COOLDOWN_TURNS;
+    // Apply progressive cooldowns based on attack value (0, 1, 2, 3 turns)
+    const cooldownTurns = getAttackCooldown(ability.value);
+    if (cooldownTurns > 0) {
+      newCooldowns[ability.id] = cooldownTurns;
     }
 
     // Check if defending player has defenses
@@ -727,13 +737,20 @@ const useAIGameStore = create<AIGameStore>((set, get) => ({
         nextTurn = attackingPlayer;
       }
       
+      // Add defense cooldown when defense is used (2 turns) - even on game end
+      const defendingDefenseCooldowns = { ...gameState[defendingPlayer].defenseCooldowns || {} };
+      if (defenseType) {
+        defendingDefenseCooldowns[defenseType] = STAMINA.DEFENSE_COOLDOWN_TURNS;
+      }
+      
       set((state) => ({
         gameState: {
           ...state.gameState,
           [defendingPlayer]: {
             ...state.gameState[defendingPlayer],
             currentHealth: Math.max(0, newHealth),
-            defenseInventory: newDefenseInventory
+            defenseInventory: newDefenseInventory,
+            defenseCooldowns: defendingDefenseCooldowns
           },
           lastAttack: undefined,
           currentTurn: nextTurn,
@@ -780,14 +797,21 @@ const useAIGameStore = create<AIGameStore>((set, get) => ({
         nextTurn = attackingPlayer;
       }
 
-      // Regenerate stamina (+10 per turn) and decrease cooldowns for both players
+      // Only regenerate stamina for the defending player (they just had their turn)
+      // Attacking player's stamina already regenerated when they attacked, or will regenerate on their next action
       const defendingStamina = Math.min(STAMINA.MAX, gameState[defendingPlayer].stamina + STAMINA.REGENERATION_PER_TURN);
-      const attackingStamina = Math.min(STAMINA.MAX, gameState[attackingPlayer].stamina + STAMINA.REGENERATION_PER_TURN);
       
+      // Only decrease cooldowns for the defending player (they just had their turn)
+      // Attacking player's cooldowns already decreased when they attacked
       const defendingCooldowns = { ...gameState[defendingPlayer].abilityCooldowns };
-      const attackingCooldowns = { ...gameState[attackingPlayer].abilityCooldowns };
+      const defendingDefenseCooldowns = { ...gameState[defendingPlayer].defenseCooldowns || {} };
       
-      // Decrease cooldowns
+      // Add defense cooldown when defense is used (2 turns)
+      if (defenseType) {
+        defendingDefenseCooldowns[defenseType] = STAMINA.DEFENSE_COOLDOWN_TURNS;
+      }
+      
+      // Decrease ability cooldowns for defending player only
       Object.keys(defendingCooldowns).forEach(abilityId => {
         if (defendingCooldowns[abilityId] > 0) {
           defendingCooldowns[abilityId]--;
@@ -797,11 +821,12 @@ const useAIGameStore = create<AIGameStore>((set, get) => ({
         }
       });
       
-      Object.keys(attackingCooldowns).forEach(abilityId => {
-        if (attackingCooldowns[abilityId] > 0) {
-          attackingCooldowns[abilityId]--;
-          if (attackingCooldowns[abilityId] === 0) {
-            delete attackingCooldowns[abilityId];
+      // Decrease defense cooldowns for defending player only
+      Object.keys(defendingDefenseCooldowns).forEach(defType => {
+        if (defendingDefenseCooldowns[defType] > 0) {
+          defendingDefenseCooldowns[defType]--;
+          if (defendingDefenseCooldowns[defType] === 0) {
+            delete defendingDefenseCooldowns[defType];
           }
         }
       });
@@ -814,12 +839,11 @@ const useAIGameStore = create<AIGameStore>((set, get) => ({
             currentHealth: newHealth,
             defenseInventory: newDefenseInventory,
             stamina: defendingStamina,
-            abilityCooldowns: defendingCooldowns
+            abilityCooldowns: defendingCooldowns,
+            defenseCooldowns: defendingDefenseCooldowns
           },
           [attackingPlayer]: {
             ...state.gameState[attackingPlayer],
-            stamina: attackingStamina,
-            abilityCooldowns: attackingCooldowns,
             ...(reflectedDamage > 0 && {
               currentHealth: attackingPlayerNewHealth
             })
@@ -859,6 +883,15 @@ const useAIGameStore = create<AIGameStore>((set, get) => ({
       const currentInventory = state.gameState[player].defenseInventory;
       const currentCount = currentInventory[defenseType] || 0;
       const totalDefenses = Object.values(currentInventory).reduce((sum, count) => sum + (count as number), 0);
+      const defenseCooldowns = state.gameState[player].defenseCooldowns || {};
+      
+      // Check if defense type is on cooldown
+      if (defenseCooldowns[defenseType] && defenseCooldowns[defenseType] > 0) {
+        if (player === 'player') {
+          toast.error(`${defenseType} defense is on cooldown for ${defenseCooldowns[defenseType]} more turn(s)!`);
+        }
+        return state;
+      }
       
       // Cannot have multiple of the same type
       if (currentCount > 0) {
@@ -968,14 +1001,16 @@ const useAIGameStore = create<AIGameStore>((set, get) => ({
         }
       );
     } else {
-      // Regenerate stamina (+10 per turn) and decrease cooldowns for both players
+      // Only regenerate stamina for the defending player (they just had their turn)
+      // Attacking player's stamina already regenerated when they attacked, or will regenerate on their next action
       const defendingStamina = Math.min(STAMINA.MAX, gameState[defendingPlayer].stamina + STAMINA.REGENERATION_PER_TURN);
-      const attackingStamina = Math.min(STAMINA.MAX, gameState[attackingPlayer].stamina + STAMINA.REGENERATION_PER_TURN);
       
+      // Only decrease cooldowns for the defending player (they just had their turn)
+      // Attacking player's cooldowns already decreased when they attacked
       const defendingCooldowns = { ...gameState[defendingPlayer].abilityCooldowns };
-      const attackingCooldowns = { ...gameState[attackingPlayer].abilityCooldowns };
+      const defendingDefenseCooldowns = { ...gameState[defendingPlayer].defenseCooldowns || {} };
       
-      // Decrease cooldowns
+      // Decrease ability cooldowns for defending player only
       Object.keys(defendingCooldowns).forEach(abilityId => {
         if (defendingCooldowns[abilityId] > 0) {
           defendingCooldowns[abilityId]--;
@@ -985,11 +1020,12 @@ const useAIGameStore = create<AIGameStore>((set, get) => ({
         }
       });
       
-      Object.keys(attackingCooldowns).forEach(abilityId => {
-        if (attackingCooldowns[abilityId] > 0) {
-          attackingCooldowns[abilityId]--;
-          if (attackingCooldowns[abilityId] === 0) {
-            delete attackingCooldowns[abilityId];
+      // Decrease defense cooldowns for defending player only
+      Object.keys(defendingDefenseCooldowns).forEach(defType => {
+        if (defendingDefenseCooldowns[defType] > 0) {
+          defendingDefenseCooldowns[defType]--;
+          if (defendingDefenseCooldowns[defType] === 0) {
+            delete defendingDefenseCooldowns[defType];
           }
         }
       });
@@ -1001,12 +1037,11 @@ const useAIGameStore = create<AIGameStore>((set, get) => ({
             ...state.gameState[defendingPlayer],
             currentHealth: newHealth,
             stamina: defendingStamina,
-            abilityCooldowns: defendingCooldowns
+            abilityCooldowns: defendingCooldowns,
+            defenseCooldowns: defendingDefenseCooldowns
           },
           [attackingPlayer]: {
-            ...state.gameState[attackingPlayer],
-            stamina: attackingStamina,
-            abilityCooldowns: attackingCooldowns
+            ...state.gameState[attackingPlayer]
           },
           lastAttack: undefined,
           currentTurn: nextTurn
@@ -1088,7 +1123,16 @@ const useAIGameStore = create<AIGameStore>((set, get) => ({
 
     // ENHANCED AI DECISION LOGIC - Super Smart AI with Stamina Management & Opponent Analysis
     const availableAttacks = availableAbilities.filter(a => a.type === 'attack');
-    const availableDefenses = availableAbilities.filter(a => a.type === 'defense');
+    // Filter defenses by defense cooldowns (defenses can't be used if their type is on cooldown)
+    const defenseCooldowns = gameState.ai.defenseCooldowns || {};
+    const availableDefenses = availableAbilities.filter(a => {
+      if (a.type !== 'defense') return false;
+      // Check if this defense type is on cooldown
+      if (a.defenseType && defenseCooldowns[a.defenseType] && defenseCooldowns[a.defenseType] > 0) {
+        return false; // Defense type is on cooldown
+      }
+      return true;
+    });
     
     let chosenAbility: Ability | null = null;
     
@@ -1109,8 +1153,8 @@ const useAIGameStore = create<AIGameStore>((set, get) => ({
     const staminaDifference = aiStamina - playerStamina;
     
     // ========== STAMINA MANAGEMENT ==========
-    // Reserve at least 10 stamina for a defense ability (defense costs 10)
-    const DEFENSE_STAMINA_COST = 10;
+    // Reserve at least 15 stamina for a defense ability (defense costs 15)
+    const DEFENSE_STAMINA_COST = 15;
     const reservedStaminaForDefense = DEFENSE_STAMINA_COST;
     const usableStaminaForAttacks = aiStamina - reservedStaminaForDefense;
     
@@ -1122,27 +1166,9 @@ const useAIGameStore = create<AIGameStore>((set, get) => ({
     
     // ========== STRATEGIC DECISION MAKING ==========
     
-    // PRIORITY 1: CRITICAL - Always maintain at least 1 defense if possible
-    // If AI has no defenses and can afford one, prioritize getting defense
-    if (totalDefenses === 0 && availableDefenses.length > 0 && aiStamina >= DEFENSE_STAMINA_COST) {
-      const defenseToAdd = availableDefenses.find(def => !currentDefenseInventory[def.defenseType || '']);
-      if (defenseToAdd) {
-        chosenAbility = defenseToAdd;
-      }
-    }
-    // PRIORITY 2: CRITICAL - If stamina is very low (< 20), only use defense or very cheap attacks
-    else if (aiStamina < 20 && availableDefenses.length > 0 && totalDefenses < 2) {
-      const defenseToAdd = availableDefenses.find(def => !currentDefenseInventory[def.defenseType || '']);
-      if (defenseToAdd) {
-        chosenAbility = defenseToAdd;
-      } else if (attacksWithReservedStamina.length > 0) {
-        // Use cheapest attack that still leaves room for defense
-        const sortedCheapAttacks = [...attacksWithReservedStamina].sort((a, b) => getStaminaCost(a) - getStaminaCost(b));
-        chosenAbility = sortedCheapAttacks[0];
-      }
-    }
-    // PRIORITY 3: WIN CONDITION - Player is very low health (< 25%) and can be finished
-    else if (playerHealthPercent < 25 && availableAttacks.length > 0) {
+    // PRIORITY 1: WIN CONDITION - Player is low health (< 40%) - prioritize finishing them
+    // More aggressive threshold for finishing moves
+    if (playerHealthPercent < 40 && availableAttacks.length > 0) {
       // Calculate if any attack can kill the player
       const playerCurrentHealth = gameState.player.currentHealth;
       const sortedAttacks = [...availableAttacks].sort((a, b) => b.value - a.value);
@@ -1167,12 +1193,27 @@ const useAIGameStore = create<AIGameStore>((set, get) => ({
         chosenAbility = sortedAttacks[0];
       }
     }
-    // PRIORITY 4: DEFENSIVE - AI is low health (< 30%) - prioritize defense
-    else if (aiHealthPercent < 30 && availableDefenses.length > 0 && totalDefenses < 2) {
+    // PRIORITY 2: CRITICAL DEFENSIVE - AI is very low health (< 20%) - prioritize defense
+    // Only defend when health is critically low
+    else if (aiHealthPercent < 20 && availableDefenses.length > 0 && totalDefenses < 2) {
       const defenseToAdd = availableDefenses.find(def => !currentDefenseInventory[def.defenseType || '']);
       if (defenseToAdd) {
         chosenAbility = defenseToAdd;
       }
+    }
+    // PRIORITY 3: CRITICAL - Always maintain at least 1 defense if possible (but only if health is moderate)
+    // If AI has no defenses and health is below 50%, prioritize getting defense
+    else if (totalDefenses === 0 && aiHealthPercent < 50 && availableDefenses.length > 0 && aiStamina >= DEFENSE_STAMINA_COST) {
+      const defenseToAdd = availableDefenses.find(def => !currentDefenseInventory[def.defenseType || '']);
+      if (defenseToAdd) {
+        chosenAbility = defenseToAdd;
+      }
+    }
+    // PRIORITY 4: AGGRESSIVE - AI is winning significantly (> 20% health advantage) - press the advantage
+    // Lowered threshold from 30% to 20% and increased priority
+    else if (healthDifference > 20 && aiStaminaPercent > 50 && attacksWithReservedStamina.length > 0) {
+      const sortedAttacks = [...attacksWithReservedStamina].sort((a, b) => b.value - a.value);
+      chosenAbility = sortedAttacks[0];
     }
     // PRIORITY 5: OPPONENT ANALYSIS - Player has many defenses (2) - use LOW damage to break through
     // Strategy: Use cheap attacks to waste opponent's defenses, then use high damage when they're gone
@@ -1181,25 +1222,28 @@ const useAIGameStore = create<AIGameStore>((set, get) => ({
       const sortedAttacks = [...attacksWithReservedStamina].sort((a, b) => a.value - b.value);
       chosenAbility = sortedAttacks[0]; // Use cheapest/lowest damage attack
     }
-    // PRIORITY 6: STAMINA MANAGEMENT - Low stamina (< 40) - use cheaper attacks and maintain defense
-    else if (aiStamina < 40 && attacksWithReservedStamina.length > 0) {
-      // Use cheaper attacks to conserve stamina while maintaining defense reserve
-      const sortedAttacks = [...attacksWithReservedStamina].sort((a, b) => getStaminaCost(a) - getStaminaCost(b));
-      chosenAbility = sortedAttacks[0];
-    }
-    // PRIORITY 7: AGGRESSIVE - AI is winning significantly (> 30% health advantage) and has good stamina
-    else if (healthDifference > 30 && aiStaminaPercent > 60 && attacksWithReservedStamina.length > 0) {
-      const sortedAttacks = [...attacksWithReservedStamina].sort((a, b) => b.value - a.value);
-      chosenAbility = sortedAttacks[0];
-    }
-    // PRIORITY 8: OPPONENT ANALYSIS - Player is low on stamina - pressure them
+    // PRIORITY 6: OPPONENT ANALYSIS - Player is low on stamina - pressure them with attacks
+    // Increased priority - attack when opponent is vulnerable
     else if (playerStaminaPercent < 30 && attacksWithReservedStamina.length > 0) {
       // Player is low on stamina, they'll struggle to defend - use high damage
       const sortedAttacks = [...attacksWithReservedStamina].sort((a, b) => b.value - a.value);
       chosenAbility = sortedAttacks[0];
     }
-    // PRIORITY 9: DEFENSIVE - Build defense inventory when health is moderate (30-70%) and defenses are low
-    else if (aiHealthPercent >= 30 && aiHealthPercent <= 70 && totalDefenses < 2 && availableDefenses.length > 0) {
+    // PRIORITY 7: STAMINA MANAGEMENT - Low stamina (< 30) - use cheaper attacks (more aggressive threshold)
+    else if (aiStamina < 30 && attacksWithReservedStamina.length > 0) {
+      // Use cheaper attacks to conserve stamina while maintaining defense reserve
+      const sortedAttacks = [...attacksWithReservedStamina].sort((a, b) => getStaminaCost(a) - getStaminaCost(b));
+      chosenAbility = sortedAttacks[0];
+    }
+    // PRIORITY 8: AGGRESSIVE - Player health is below AI health - keep attacking
+    else if (playerHealthPercent < aiHealthPercent && attacksWithReservedStamina.length > 0) {
+      // Player is weaker - press the attack
+      const sortedAttacks = [...attacksWithReservedStamina].sort((a, b) => b.value - a.value);
+      chosenAbility = sortedAttacks[0];
+    }
+    // PRIORITY 9: DEFENSIVE - Build defense inventory only when health is low (20-40%) and defenses are low
+    // More restrictive - only build defense when health is actually low
+    else if (aiHealthPercent >= 20 && aiHealthPercent <= 40 && totalDefenses < 2 && availableDefenses.length > 0) {
       // Only build defense if we have enough stamina buffer
       if (aiStamina >= 30) { // Ensure we have enough stamina after defense
         const defenseToAdd = availableDefenses.find(def => !currentDefenseInventory[def.defenseType || '']);
@@ -1208,7 +1252,19 @@ const useAIGameStore = create<AIGameStore>((set, get) => ({
         }
       }
     }
-    // PRIORITY 10: COOLDOWN MANAGEMENT - Highest attack on cooldown - use next best
+    // PRIORITY 10: CRITICAL - If stamina is very low (< 20), only use defense or very cheap attacks
+    // Moved lower in priority - only when truly desperate
+    else if (aiStamina < 20 && availableDefenses.length > 0 && totalDefenses < 2) {
+      const defenseToAdd = availableDefenses.find(def => !currentDefenseInventory[def.defenseType || '']);
+      if (defenseToAdd) {
+        chosenAbility = defenseToAdd;
+      } else if (attacksWithReservedStamina.length > 0) {
+        // Use cheapest attack that still leaves room for defense
+        const sortedCheapAttacks = [...attacksWithReservedStamina].sort((a, b) => getStaminaCost(a) - getStaminaCost(b));
+        chosenAbility = sortedCheapAttacks[0];
+      }
+    }
+    // PRIORITY 11: COOLDOWN MANAGEMENT - Highest attack on cooldown - use next best
     else if (attacksWithReservedStamina.length > 1) {
       const highestAttack = attacksWithReservedStamina.find(a => a.value === 35);
       const highestAttackOnCooldown = highestAttack && gameState.ai.abilityCooldowns[highestAttack.id] > 0;
@@ -1223,18 +1279,18 @@ const useAIGameStore = create<AIGameStore>((set, get) => ({
         chosenAbility = sortedAttacks[0];
       }
     }
-    // PRIORITY 11: DEFAULT - Use highest damage attack while maintaining defense reserve
+    // PRIORITY 12: DEFAULT - Use highest damage attack while maintaining defense reserve
     else if (attacksWithReservedStamina.length > 0) {
       const sortedAttacks = [...attacksWithReservedStamina].sort((a, b) => b.value - a.value);
       chosenAbility = sortedAttacks[0];
     }
-    // PRIORITY 12: FALLBACK - If we can't maintain defense reserve, use best available attack
+    // PRIORITY 13: FALLBACK - If we can't maintain defense reserve, use best available attack
     else if (availableAttacks.length > 0) {
       // Desperate situation - use attack even if it means no stamina for defense
       const sortedAttacks = [...availableAttacks].sort((a, b) => b.value - a.value);
       chosenAbility = sortedAttacks[0];
     }
-    // PRIORITY 13: LAST RESORT - Use defense if no attacks available or if we need to build defense
+    // PRIORITY 14: LAST RESORT - Use defense if no attacks available or if we need to build defense
     else if (availableDefenses.length > 0) {
       // Try to add a new defense type if we don't have 2 yet
       if (totalDefenses < 2) {
@@ -1249,6 +1305,11 @@ const useAIGameStore = create<AIGameStore>((set, get) => ({
         // Already have 2 defenses, but if no attacks available, use defense anyway
         chosenAbility = availableDefenses[0];
       }
+    }
+    
+    // ABSOLUTE FALLBACK - If somehow no ability was chosen, use first available ability
+    if (!chosenAbility && availableAbilities.length > 0) {
+      chosenAbility = availableAbilities[0];
     }
 
     if (!chosenAbility) {

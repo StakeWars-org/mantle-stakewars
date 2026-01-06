@@ -7,8 +7,13 @@ import DiceRollToDetermineFirstTurn from '@/components/FirstTurnDiceRoll';
 import DefenseModal from '@/components/DefenceModal';
 // import BattleStoryboard from './BattleStoryboard';
 import { toast } from 'react-toastify';
-import PlayerHealth from "./PlayerHealth";
-import OpponentPlayerHealth from './OpponentPlayerHealth';
+// OLD COMPONENTS - Commented out but preserved for reference
+// import PlayerHealth from "./PlayerHealth";
+// import OpponentPlayerHealth from './OpponentPlayerHealth';
+// NEW ENHANCED COMPONENTS
+import PvPBattleArena from './PvPBattleArena';
+import PvPCombatFeedback from './PvPCombatFeedback';
+import PvPEnhancedBattleStoryboard from './PvPEnhancedBattleStoryboard';
 import WonMessage from './WonMessage'
 import LostMessage from './LostMessage'
 import { usePrivy, useWallets } from '@privy-io/react-auth';
@@ -184,7 +189,51 @@ export default function Gameplay({roomId} : {roomId: string}) {
   };
 
   return (
-    <div className='w-[95%] lg:w-[707px] pb-4 relative mx-auto lg:px-0 mt-10'>
+    <div className='w-[95%] lg:w-[900px] xl:w-[1000px] relative mx-auto lg:px-0 mt-4'>
+      {/* NEW ENHANCED BATTLE ARENA LAYOUT */}
+      <div className="relative">
+        {/* Room ID Button */}
+        <div className="flex justify-center items-center mb-4">
+          <Button 
+            onClick={copyRoomId}
+            className="flex items-center gap-2 bg-[#313030] hover:bg-[#404040] transition-colors duration-200 px-4 py-2 rounded-lg border border-[#E3DEDE] cursor-pointer group"
+          >
+            <span className="text-white text-xs lg:text-sm font-medium">Room ID:</span>
+            <span className="text-[#BFE528] text-xs lg:text-sm font-bold font-mono">
+              {roomId.slice(-8)}
+            </span>
+            <Copy size={20} className='text-white' />
+          </Button>
+        </div>
+
+        {/* First Turn Dice Roll - Only shows when game hasn't started */}
+        {(gameState.gameStatus === 'waiting' || gameState.gameStatus === 'character-select') && (
+          <div className="flex flex-col items-center my-[30px] bg-[#3F3F3F] rounded-[10px] p-6 pt-5">
+            {gameState.gameStatus === 'character-select' && (
+              <div className='space-y-[14px] flex flex-col justify-center items-center w-full bg-[#494949] rounded-[10px] py-[18px]'>
+                <DiceRollToDetermineFirstTurn />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Enhanced Battle Arena - Side-by-side layout */}
+        {gameState.gameStatus === 'inProgress' && (
+          <>
+            <div className="relative mb-6">
+              <PvPBattleArena gameState={gameState} currentTurn={gameState.currentTurn} />
+              <PvPCombatFeedback gameState={gameState} />
+            </div>
+            
+            {/* Enhanced Battle Storyboard */}
+            <div className="mb-6">
+              <PvPEnhancedBattleStoryboard />
+            </div>
+          </>
+        )}
+
+        {/* OLD LAYOUT - Commented out but preserved */}
+        {/* 
         <OpponentPlayerHealth gameState={gameState} />
         
         <div className="flex justify-center items-center mt-4 mb-2">
@@ -199,29 +248,30 @@ export default function Gameplay({roomId} : {roomId: string}) {
             <Copy size={20} className='text-white' />
           </Button>
         </div>
-      <div className={`${gameState.gameStatus === 'inProgress' ? 'hidden' : ''} flex flex-col items-center my-[30px] bg-[#3F3F3F] rounded-[10px] p-6 pt-5`}>
-        {gameState.gameStatus === 'character-select' && (
-          <div className='space-y-[14px] flex flex-col justify-center items-center w-full bg-[#494949] rounded-[10px] py-[18px]'>
-            <DiceRollToDetermineFirstTurn />
-          </div>
-        )}
-        {/* {gameState.gameStatus === 'inProgress' && (
-          <BattleStoryboard gameState={gameState} />
-        )} */}
+        <div className={`${gameState.gameStatus === 'inProgress' ? 'hidden' : ''} flex flex-col items-center my-[30px] bg-[#3F3F3F] rounded-[10px] p-6 pt-5`}>
+          {gameState.gameStatus === 'character-select' && (
+            <div className='space-y-[14px] flex flex-col justify-center items-center w-full bg-[#494949] rounded-[10px] py-[18px]'>
+              <DiceRollToDetermineFirstTurn />
+            </div>
+          )}
+        </div>
+        <div className="flex flex-col justify-center items-center">
+          <PlayerHealth gameState={gameState} />
+        </div>
+        */}
       </div>
-      <div className="flex flex-col justify-center items-center">
-        <PlayerHealth  gameState={gameState} />
-      </div>
+      
+      {/* Modals and Messages */}
       <div className={`absolute top-0 w-full ${showDefenseModal || showWinner || showLoser ? 'h-full' : ''}`}>
         {showWinner && <WonMessage roomId={roomId} />}
         {showLoser && <LostMessage roomId={roomId} />}
         {showDefenseModal && defendingPlayer === gameState.currentTurn && (
-        <DefenseModal
-          player={defendingPlayer as 'player1' | 'player2'}
-          onDefenseSelect={handleDefenseSelection}
-          showSkipButton={showSkipDefenseButton}
-        />
-      )}
+          <DefenseModal
+            player={defendingPlayer as 'player1' | 'player2'}
+            onDefenseSelect={handleDefenseSelection}
+            showSkipButton={showSkipDefenseButton}
+          />
+        )}
       </div>
     </div>
   );

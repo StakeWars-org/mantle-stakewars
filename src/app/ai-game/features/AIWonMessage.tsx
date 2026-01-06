@@ -90,7 +90,7 @@ const AIWonMessage: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-[#3F3F3F] rounded-[20px] p-8 max-w-md w-full mx-4 text-center">
         <div className="mb-6">
           <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">

@@ -259,8 +259,8 @@ export default function LostMessage({ roomId }: LostMessageProps) {
       }
 
   return (
-    <div className="bg-[#191919]/60 h-full w-full top-0 left-0">
-      <div className="flex flex-col justify-center items-center h-full">
+    <div className="fixed inset-0 bg-[#191919]/60 flex items-center justify-center z-50">
+      <div className="flex flex-col justify-center items-center">
         <div className="flex justify-end w-[60%] -mt-20"></div>
         <img
           className="-mb-[98px] lg:-mb-[115px] z-30 size-[90px] lg:size-[106px]"

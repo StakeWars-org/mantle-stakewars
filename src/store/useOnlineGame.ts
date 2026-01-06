@@ -20,6 +20,7 @@ import {
   getRandomDamageInRange, 
   getStaminaCost, 
   getAvailableAbilities,
+  getAttackCooldown,
   STAMINA 
 } from '@/lib/combatUtils';
 
@@ -86,6 +87,7 @@ interface GameState {
     currentHealth: number;
     stamina: number;
     abilityCooldowns: { [abilityId: string]: number };
+    defenseCooldowns: { [defenseType: string]: number }; // Cooldowns for defense types (dodge, block, reflect)
     defenseInventory: DefenseInventory;
     activeBuffs?: Buff[];
     skippedDefense?: {
@@ -99,6 +101,7 @@ interface GameState {
     currentHealth: number;
     stamina: number;
     abilityCooldowns: { [abilityId: string]: number };
+    defenseCooldowns: { [defenseType: string]: number }; // Cooldowns for defense types (dodge, block, reflect)
     defenseInventory: DefenseInventory;
     activeBuffs?: Buff[];
     skippedDefense?: {
@@ -127,6 +130,7 @@ const initialGameState: GameState = {
     currentHealth: 0,
     stamina: STAMINA.STARTING,
     abilityCooldowns: {},
+    defenseCooldowns: {},
     defenseInventory: {} 
   },
   player2: {
@@ -134,6 +138,7 @@ const initialGameState: GameState = {
     currentHealth: 0,
     stamina: STAMINA.STARTING,
     abilityCooldowns: {},
+    defenseCooldowns: {},
     defenseInventory: {}
   },
   currentTurn: 'player1',
@@ -340,6 +345,7 @@ const useOnlineGameStore = create<OnlineGameStore>((set, get) => ({
       [`gameState.${isPlayer1 ? "player1" : "player2"}.id`]: playerAddress,
       [`gameState.${isPlayer1 ? "player1" : "player2"}.stamina`]: STAMINA.STARTING,
       [`gameState.${isPlayer1 ? "player1" : "player2"}.abilityCooldowns`]: {},
+      [`gameState.${isPlayer1 ? "player1" : "player2"}.defenseCooldowns`]: {},
       [`gameState.${isPlayer1 ? "player1" : "player2"}.activeBuffs`]: activeBuffs,
       [`gameState.gameStatus`]: "character-select",
       status: "character-select",
@@ -452,6 +458,13 @@ const useOnlineGameStore = create<OnlineGameStore>((set, get) => ({
     const roomRef = doc(db, "gameRooms", roomId);
     const nextPlayer = player === "player1" ? "player2" : "player1";
 
+    // Check if defense type is on cooldown
+    const defenseCooldowns = gameState[player]?.defenseCooldowns || {};
+    if (defenseCooldowns[defenseType] && defenseCooldowns[defenseType] > 0) {
+      toast.error(`${defenseType} defense is on cooldown for ${defenseCooldowns[defenseType]} more turn(s)!`);
+      return;
+    }
+
     // Check if defense type already exists (no duplicates allowed)
     const defenseAlreadyExists = gameState[player]?.defenseInventory?.[defenseType] && gameState[player].defenseInventory[defenseType] > 0;
     if (defenseAlreadyExists) {
@@ -545,14 +558,16 @@ const useOnlineGameStore = create<OnlineGameStore>((set, get) => ({
     const updatedHealth =
       gameState[defendingPlayer].currentHealth - incomingDamage;
 
-    // Regenerate stamina (+15 per turn) and decrease cooldowns for both players
+    // Only regenerate stamina for the defending player (they just had their turn)
+    // Attacking player's stamina already regenerated when they attacked, or will regenerate on their next action
     const defendingStamina = Math.min(STAMINA.MAX, (gameState[defendingPlayer].stamina || STAMINA.STARTING) + STAMINA.REGENERATION_PER_TURN);
-    const attackingStamina = Math.min(STAMINA.MAX, (gameState[opponentPlayer].stamina || STAMINA.STARTING) + STAMINA.REGENERATION_PER_TURN);
     
+    // Only decrease cooldowns for the defending player (they just had their turn)
+    // Attacking player's cooldowns already decreased when they attacked
     const defendingCooldowns = { ...gameState[defendingPlayer]?.abilityCooldowns || {} };
-    const attackingCooldowns = { ...gameState[opponentPlayer]?.abilityCooldowns || {} };
+    const defendingDefenseCooldowns = { ...gameState[defendingPlayer]?.defenseCooldowns || {} };
     
-    // Decrease cooldowns
+    // Decrease ability cooldowns for defending player only
     Object.keys(defendingCooldowns).forEach(abilityId => {
       if (defendingCooldowns[abilityId] > 0) {
         defendingCooldowns[abilityId]--;
@@ -562,11 +577,12 @@ const useOnlineGameStore = create<OnlineGameStore>((set, get) => ({
       }
     });
     
-    Object.keys(attackingCooldowns).forEach(abilityId => {
-      if (attackingCooldowns[abilityId] > 0) {
-        attackingCooldowns[abilityId]--;
-        if (attackingCooldowns[abilityId] === 0) {
-          delete attackingCooldowns[abilityId];
+    // Decrease defense cooldowns for defending player only
+    Object.keys(defendingDefenseCooldowns).forEach(defType => {
+      if (defendingDefenseCooldowns[defType] > 0) {
+        defendingDefenseCooldowns[defType]--;
+        if (defendingDefenseCooldowns[defType] === 0) {
+          delete defendingDefenseCooldowns[defType];
         }
       }
     });
@@ -575,8 +591,7 @@ const useOnlineGameStore = create<OnlineGameStore>((set, get) => ({
       [`gameState.${defendingPlayer}.currentHealth`]: updatedHealth,
       [`gameState.${defendingPlayer}.stamina`]: defendingStamina,
       [`gameState.${defendingPlayer}.abilityCooldowns`]: defendingCooldowns,
-      [`gameState.${opponentPlayer}.stamina`]: attackingStamina,
-      [`gameState.${opponentPlayer}.abilityCooldowns`]: attackingCooldowns,
+      [`gameState.${defendingPlayer}.defenseCooldowns`]: defendingDefenseCooldowns,
       [`gameState.${defendingPlayer}.skippedDefense`]: {
         ability,
         damage: incomingDamage,
@@ -595,8 +610,8 @@ const useOnlineGameStore = create<OnlineGameStore>((set, get) => ({
       const loser = defendingPlayer;
       const winnerAddress = gameState[winner].id || '';
       const loserAddress = gameState[loser].id || '';
-      const winnerChakra = 50; // Winner gets 50 Chakra
-      const loserChakra = 20; // Loser gets 20 Chakra
+      const winnerChakra = 100; // Winner gets 100 Chakra
+      const loserChakra = 50; // Loser gets 50 Chakra
       const winnerXP = 10; // Winner gets 10 XP
       const loserXP = 5; // Loser gets 5 XP
       const player1Character = gameState.player1.character?.nickname || 'Unknown';
@@ -650,14 +665,21 @@ const useOnlineGameStore = create<OnlineGameStore>((set, get) => ({
 
     const roomRef = doc(db, "gameRooms", roomId);
 
-    // Regenerate stamina (+15 per turn) and decrease cooldowns for both players
+    // Only regenerate stamina for the defending player (they just had their turn)
+    // Attacking player's stamina already regenerated when they attacked, or will regenerate on their next action
     const defendingStamina = Math.min(STAMINA.MAX, (gameState[defendingPlayer].stamina || STAMINA.STARTING) + STAMINA.REGENERATION_PER_TURN);
-    const attackingStamina = Math.min(STAMINA.MAX, (gameState[opponentPlayer].stamina || STAMINA.STARTING) + STAMINA.REGENERATION_PER_TURN);
     
+    // Only decrease cooldowns for the defending player (they just had their turn)
+    // Attacking player's cooldowns already decreased when they attacked
     const defendingCooldowns = { ...gameState[defendingPlayer]?.abilityCooldowns || {} };
-    const attackingCooldowns = { ...gameState[opponentPlayer]?.abilityCooldowns || {} };
+    const defendingDefenseCooldowns = { ...gameState[defendingPlayer]?.defenseCooldowns || {} };
     
-    // Decrease cooldowns
+    // Add defense cooldown when defense is used (2 turns)
+    if (defenseType) {
+      defendingDefenseCooldowns[defenseType] = STAMINA.DEFENSE_COOLDOWN_TURNS;
+    }
+    
+    // Decrease ability cooldowns for defending player only
     Object.keys(defendingCooldowns).forEach(abilityId => {
       if (defendingCooldowns[abilityId] > 0) {
         defendingCooldowns[abilityId]--;
@@ -667,11 +689,12 @@ const useOnlineGameStore = create<OnlineGameStore>((set, get) => ({
       }
     });
     
-    Object.keys(attackingCooldowns).forEach(abilityId => {
-      if (attackingCooldowns[abilityId] > 0) {
-        attackingCooldowns[abilityId]--;
-        if (attackingCooldowns[abilityId] === 0) {
-          delete attackingCooldowns[abilityId];
+    // Decrease defense cooldowns for defending player only
+    Object.keys(defendingDefenseCooldowns).forEach(defType => {
+      if (defendingDefenseCooldowns[defType] > 0) {
+        defendingDefenseCooldowns[defType]--;
+        if (defendingDefenseCooldowns[defType] === 0) {
+          delete defendingDefenseCooldowns[defType];
         }
       }
     });
@@ -681,8 +704,7 @@ const useOnlineGameStore = create<OnlineGameStore>((set, get) => ({
         (gameState[defendingPlayer].defenseInventory[defenseType] || 1) - 1,
       [`gameState.${defendingPlayer}.stamina`]: defendingStamina,
       [`gameState.${defendingPlayer}.abilityCooldowns`]: defendingCooldowns,
-      [`gameState.${opponentPlayer}.stamina`]: attackingStamina,
-      [`gameState.${opponentPlayer}.abilityCooldowns`]: attackingCooldowns,
+      [`gameState.${defendingPlayer}.defenseCooldowns`]: defendingDefenseCooldowns,
       [`gameState.${defendingPlayer}.skippedDefense`]: null,
       "gameState.lastAttack": { ability: null, attackingPlayer: null, actualDamage: 0 },
     };
@@ -760,8 +782,8 @@ const useOnlineGameStore = create<OnlineGameStore>((set, get) => ({
       const loser = defendingPlayer;
       const winnerAddress = gameState[winner].id || '';
       const loserAddress = gameState[loser].id || '';
-      const winnerChakra = 50; // Winner gets 50 Chakra
-      const loserChakra = 20; // Loser gets 20 Chakra
+      const winnerChakra = 100; // Winner gets 100 Chakra
+      const loserChakra = 50; // Loser gets 50 Chakra
       const winnerXP = 10; // Winner gets 10 XP
       const loserXP = 5; // Loser gets 5 XP
       const player1Character = gameState.player1.character?.nickname || 'Unknown';
@@ -863,6 +885,9 @@ const useOnlineGameStore = create<OnlineGameStore>((set, get) => ({
       toast.success(`🎯 CRITICAL HIT! +${STAMINA.CRITICAL_HIT_REWARD} stamina!`);
     }
     
+    // Regenerate stamina for the attacking player (they just had their turn)
+    newStamina = Math.min(STAMINA.MAX, newStamina + STAMINA.REGENERATION_PER_TURN);
+    
     // Decrease all existing cooldowns by 1 first
     const newCooldowns = { ...gameState[attackingPlayer].abilityCooldowns || {} };
     Object.keys(newCooldowns).forEach(abilityId => {
@@ -874,9 +899,10 @@ const useOnlineGameStore = create<OnlineGameStore>((set, get) => ({
       }
     });
     
-    // Apply cooldown for highest attack (value 35) after decreasing others
-    if (ability.value === 35) {
-      newCooldowns[ability.id] = STAMINA.COOLDOWN_TURNS;
+    // Apply progressive cooldowns based on attack value (0, 1, 2, 3 turns)
+    const cooldownTurns = getAttackCooldown(ability.value);
+    if (cooldownTurns > 0) {
+      newCooldowns[ability.id] = cooldownTurns;
     }
 
     const updateData: UpdateData = {
