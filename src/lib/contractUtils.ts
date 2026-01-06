@@ -1,4 +1,4 @@
-import { createPublicClient, http, defineChain } from "viem";
+import { createPublicClient, http, defineChain, encodeAbiParameters, keccak256, stringToBytes, encodeFunctionData } from "viem";
 import { mantleTestnet as viemMantleTestnet } from "viem/chains";
 import { STAKEWARS_ABI } from "./abi";
 import { STAKEWARS_CONTRACT_ADDRESS } from "./contractaddr";

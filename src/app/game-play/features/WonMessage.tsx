@@ -4,9 +4,10 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { toast } from "react-toastify";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { doc, getDoc } from "firebase/firestore";
+import { usePrivy, useWallets, useSendTransaction } from "@privy-io/react-auth";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db } from "@/config/firebase";
+import { processGameResultOnChain, GameResultData } from "@/lib/contractUtils";
 
 interface WonMessageProps {
   roomId: string;
@@ -16,6 +17,7 @@ export default function WonMessage({ roomId }: WonMessageProps) {
   const router = useRouter();
   const { ready, authenticated } = usePrivy();
   const { wallets } = useWallets();
+  const { sendTransaction } = useSendTransaction();
   
   // Get wallet address from Privy
   const walletAddress = wallets[0]?.address || '';
@@ -44,11 +46,8 @@ export default function WonMessage({ roomId }: WonMessageProps) {
         if (gameRoomSnap.exists()) {
           const gameData = gameRoomSnap.data();
           
-          // Check if rewards already claimed
-          if (gameData.rewardsClaimed) {
-            setHasClaimed(true);
-            console.log("✅ Rewards already claimed for this game");
-          }
+          // Note: We don't check rewardsClaimed from Firebase to initialize hasClaimed
+          // This allows claiming per session - when component remounts (new game), button will be enabled again
           
           // Check for wager match
           if (gameData.isWagerMatch && gameData.wagerId) {
@@ -312,6 +311,65 @@ export default function WonMessage({ roomId }: WonMessageProps) {
          }
 
          setIsClaiming(true);
+
+         // Process game result on-chain
+         try {
+           console.log("📝 Processing game result on-chain...");
+           const gameRoomRef = doc(db, "gameRooms", roomId);
+           const gameRoomSnap = await getDoc(gameRoomRef);
+           
+           if (gameRoomSnap.exists()) {
+             const gameData = gameRoomSnap.data();
+             const gameState = gameData.gameState;
+             
+             if (gameState && gameState.player1 && gameState.player2 && gameState.winner) {
+               const winner = gameState.winner;
+               const loser = winner === "player1" ? "player2" : "player1";
+               const winnerAddress = gameState[winner]?.id || '';
+               const loserAddress = gameState[loser]?.id || '';
+               const player1Address = gameState.player1.id || '';
+               const player2Address = gameState.player2.id || '';
+               const player1Character = gameState.player1.character?.nickname || 'Unknown';
+               const player2Character = gameState.player2.character?.nickname || 'Unknown';
+               
+               const gameResult: GameResultData = {
+                 gameID: roomId,
+                 player1Address: player1Address,
+                 player2Address: player2Address,
+                 winner: winner,
+                 winnerAddress: winnerAddress,
+                 loserAddress: loserAddress,
+                 winnerChakra: 100,
+                 loserChakra: 50,
+                 winnerXP: 10,
+                 loserXP: 5,
+                 player1Character: player1Character,
+                 player2Character: player2Character,
+               };
+               
+               const txHash = await processGameResultOnChain(
+                 gameResult,
+                 sendTransaction,
+                 walletAddress as `0x${string}`
+               );
+               
+               console.log("✅ Game result processed on-chain:", txHash);
+               toast.success(`Game result processed! Transaction: ${txHash.slice(0, 10)}...`);
+               
+               // Disable button after successful contract interaction
+               setHasClaimed(true);
+             } else {
+               console.warn("⚠️ Game state data incomplete, skipping on-chain processing");
+             }
+           } else {
+             console.warn("⚠️ Game room not found, skipping on-chain processing");
+           }
+         } catch (error) {
+           console.error("❌ Error processing game result on-chain:", error);
+           toast.error(`Failed to process game result on-chain: ${error instanceof Error ? error.message : 'Unknown error'}`);
+           // Don't disable button if contract interaction fails
+           return; // Exit early if contract interaction fails
+         }
          
          if (!walletAddress) {
            toast.error("Wallet not connected");
@@ -334,23 +392,37 @@ export default function WonMessage({ roomId }: WonMessageProps) {
          console.log("Stats update response status:", updateStatsResponse.status);
 
          if (!updateStatsResponse.ok) {
-           const errorData = await updateStatsResponse.json();
-           console.error("❌ Failed to update stats:", errorData);
-           toast.error(`Failed to update win stats: ${errorData.error || 'Unknown error'}`);
-           return;
+           // Silently handle stats update error - don't show toast, just log it
+           try {
+             const contentType = updateStatsResponse.headers.get("content-type");
+             if (contentType && contentType.includes("application/json")) {
+               const errorData = await updateStatsResponse.json();
+               console.warn("⚠️ Stats update failed:", errorData.error || "Unknown error");
+             } else {
+               console.warn(`⚠️ Stats update failed with HTTP ${updateStatsResponse.status}`);
+             }
+           } catch (parseError) {
+             console.error("❌ Failed to parse error response:", parseError);
+             console.warn(`⚠️ Stats update failed with HTTP ${updateStatsResponse.status}`);
+           }
+           // Continue with claim flow - don't block on stats update failure
+         } else {
+           // Only try to parse and show success message if response was ok
+           try {
+             const statsData = await updateStatsResponse.json();
+             console.log("Stats data received:", statsData);
+             
+             if (statsData.success) {
+               toast.success(`Win recorded! Total wins: ${statsData.stats.wins}`);
+               console.log("✅ Win stats updated successfully");
+             } else {
+               console.warn("⚠️ Stats update returned success:false");
+             }
+           } catch (parseError) {
+             console.error("❌ Failed to parse stats response:", parseError);
+             // Continue with claim flow
+           }
          }
-
-        const statsData = await updateStatsResponse.json();
-        console.log("Stats data received:", statsData);
-        
-        if (statsData.success) {
-          toast.success(`Win recorded! Total wins: ${statsData.stats.wins}`);
-          console.log("✅ Win stats updated successfully");
-        } else {
-          toast.error("Failed to record win");
-          console.error("❌ Stats update failed:", statsData);
-          return;
-        }
          
          const claimResponse = await fetch("/api/claim-xp", {
            method: "POST",
@@ -364,8 +436,20 @@ export default function WonMessage({ roomId }: WonMessageProps) {
          });
 
          if (!claimResponse.ok) {
-           const errorData = await claimResponse.json();
-           toast.error(errorData.error || "Failed to claim XP");
+           // Silently handle XP claim error - don't show toast, just log it
+           try {
+             const contentType = claimResponse.headers.get("content-type");
+             if (contentType && contentType.includes("application/json")) {
+               const errorData = await claimResponse.json();
+               console.warn("⚠️ XP claim failed:", errorData.error || "Unknown error");
+             } else {
+               console.warn(`⚠️ XP claim failed with HTTP ${claimResponse.status}`);
+             }
+           } catch (parseError) {
+             console.error("❌ Failed to parse error response:", parseError);
+             console.warn(`⚠️ XP claim failed with HTTP ${claimResponse.status}`);
+           }
+           // Continue with flow - button already disabled from contract interaction
            return;
          }
 
@@ -373,7 +457,6 @@ export default function WonMessage({ roomId }: WonMessageProps) {
          
          if (claimData.transactionResult && claimData.transactionResult.status === "Success") {
            toast.success(`Successfully claimed 10 XP! ${claimData.transactionResult.signature}`);
-           setHasClaimed(true);
          } else {
            throw new Error("XP claim transaction failed");
          }
@@ -390,8 +473,20 @@ export default function WonMessage({ roomId }: WonMessageProps) {
          });
 
          if (!mintResponse.ok) {
-           const errorData = await mintResponse.json();
-           toast.error(errorData.error || "Failed to mint resources");
+           // Silently handle mint error - don't show toast, just log it
+           try {
+             const contentType = mintResponse.headers.get("content-type");
+             if (contentType && contentType.includes("application/json")) {
+               const errorData = await mintResponse.json();
+               console.warn("⚠️ Chakra mint failed:", errorData.error || "Unknown error");
+             } else {
+               console.warn(`⚠️ Chakra mint failed with HTTP ${mintResponse.status}`);
+             }
+           } catch (parseError) {
+             console.error("❌ Failed to parse error response:", parseError);
+             console.warn(`⚠️ Chakra mint failed with HTTP ${mintResponse.status}`);
+           }
+           // Continue with flow - button already disabled from contract interaction
            return;
          }
 
@@ -403,20 +498,15 @@ export default function WonMessage({ roomId }: WonMessageProps) {
            throw new Error("Chakra mint transaction failed");
          }
 
-           // Mark rewards as claimed in the game room
-           const { updateDoc, doc } = await import("firebase/firestore");
-           const { db } = await import("@/config/firebase");
-           const gameRoomRef = doc(db, "gameRooms", roomId);
-           await updateDoc(gameRoomRef, {
-             rewardsClaimed: true,
-             rewardsClaimedAt: Date.now(),
-             rewardsClaimedBy: walletAddress,
-           });
-           
-           // Update local state so button is disabled
-           setHasClaimed(true);
+         // Mark rewards as claimed in the game room
+         const gameRoomRef = doc(db, "gameRooms", roomId);
+         await updateDoc(gameRoomRef, {
+           rewardsClaimed: true,
+           rewardsClaimedAt: Date.now(),
+           rewardsClaimedBy: walletAddress,
+         });
 
-           router.push("/lobby");
+         router.push("/lobby");
       } catch (error) {
         console.error("❌ Error in claimXP flow:", error);
         console.error("Error details:", error instanceof Error ? error.message : error);
