@@ -248,14 +248,14 @@ export default function Gameplay({roomId} : {roomId: string}) {
             <Copy size={20} className='text-white' />
           </Button>
         </div>
-        <div className={`${gameState.gameStatus === 'inProgress' ? 'hidden' : ''} flex flex-col items-center my-[30px] bg-[#3F3F3F] rounded-[10px] p-6 pt-5`}>
-          {gameState.gameStatus === 'character-select' && (
-            <div className='space-y-[14px] flex flex-col justify-center items-center w-full bg-[#494949] rounded-[10px] py-[18px]'>
-              <DiceRollToDetermineFirstTurn />
-            </div>
-          )}
-        </div>
-        <div className="flex flex-col justify-center items-center">
+      <div className={`${gameState.gameStatus === 'inProgress' ? 'hidden' : ''} flex flex-col items-center my-[30px] bg-[#3F3F3F] rounded-[10px] p-6 pt-5`}>
+        {gameState.gameStatus === 'character-select' && (
+          <div className='space-y-[14px] flex flex-col justify-center items-center w-full bg-[#494949] rounded-[10px] py-[18px]'>
+            <DiceRollToDetermineFirstTurn />
+          </div>
+        )}
+      </div>
+      <div className="flex flex-col justify-center items-center">
           <PlayerHealth gameState={gameState} />
         </div>
         */}
@@ -266,12 +266,12 @@ export default function Gameplay({roomId} : {roomId: string}) {
         {showWinner && <WonMessage roomId={roomId} />}
         {showLoser && <LostMessage roomId={roomId} />}
         {showDefenseModal && defendingPlayer === gameState.currentTurn && (
-          <DefenseModal
-            player={defendingPlayer as 'player1' | 'player2'}
-            onDefenseSelect={handleDefenseSelection}
-            showSkipButton={showSkipDefenseButton}
-          />
-        )}
+        <DefenseModal
+          player={defendingPlayer as 'player1' | 'player2'}
+          onDefenseSelect={handleDefenseSelection}
+          showSkipButton={showSkipDefenseButton}
+        />
+      )}
       </div>
     </div>
   );

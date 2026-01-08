@@ -671,7 +671,7 @@ const useAIGameStore = create<AIGameStore>((set, get) => ({
       }
       
       // No defenses available or strategic skip
-      toast.info(`🤖 AI has no defenses available!`);
+        toast.info(`🤖 AI has no defenses available!`);
       get().skipDefense('ai', incomingDamage, ability);
     }
   },
@@ -1299,7 +1299,7 @@ const useAIGameStore = create<AIGameStore>((set, get) => ({
           chosenAbility = defenseToAdd;
         } else {
           // Already have this defense type, but use it anyway if it's the only option
-          chosenAbility = availableDefenses[0];
+      chosenAbility = availableDefenses[0];
         }
       } else {
         // Already have 2 defenses, but if no attacks available, use defense anyway

@@ -62,161 +62,130 @@ export default function OnboardingDialog() {
     console.log('[Onboarding] Step 2 (Faucet) marked as complete');
   }, [walletAddress]);
 
-  // Check Chakra balance (Step 3)
+  // Check Chakra balance (Step 3) - using same approach as NavBar
   const checkChakra = useCallback(async (forceRefresh = false) => {
     if (!walletAddress || !authenticated) {
+      setHasChakra(false);
+      setChakraBalance(0);
       return;
     }
 
     const step3CompleteKey = `onboarding-step3-${walletAddress}`;
     const chakraStorageKey = `onboarding-chakra-${walletAddress}`;
-    const lastCheckKey = `onboarding-chakra-last-check-${walletAddress}`;
-    const lastCheckTime = localStorage.getItem(lastCheckKey);
-    const now = Date.now();
     
-    // Don't check if:
-    // 1. Not forcing refresh AND
-    // 2. Already marked complete AND
-    // 3. Last check was less than 5 minutes ago
-    if (!forceRefresh && localStorage.getItem(step3CompleteKey) === 'true' && 
-        lastCheckTime && (now - parseInt(lastCheckTime)) < 300000) {
-      const cachedChakra = localStorage.getItem(chakraStorageKey);
-      if (cachedChakra) {
-        setHasChakra(true);
-        setChakraBalance(parseFloat(cachedChakra) || 0);
-        console.log('[Onboarding] Using cached Chakra balance (checked recently)');
-        return;
-      }
+    // ALWAYS check cache first - use it if it exists and is 'true'
+    const cachedStep3Complete = localStorage.getItem(step3CompleteKey) === 'true';
+    const cachedChakra = localStorage.getItem(chakraStorageKey);
+    
+    if (!forceRefresh && cachedStep3Complete && cachedChakra) {
+      // Use cached value immediately
+      const chakraValue = parseFloat(cachedChakra) || 0;
+      setHasChakra(chakraValue > 0);
+      setChakraBalance(chakraValue);
+      console.log('[Onboarding] Using cached Chakra balance:', chakraValue);
+      return;
+    }
+    
+    // Only check if cache is missing or false (or force refresh)
+    if (!forceRefresh && cachedStep3Complete) {
+      // Cache says complete but no value stored - shouldn't happen, but use cache
+      setHasChakra(true);
+      setChakraBalance(0);
+      console.log('[Onboarding] Using cached completion status (no balance value)');
+      return;
     }
 
     setCheckingChakra(true);
 
-    // Retry logic for Chakra check - fetch multiple times
-    const maxRetries = 3;
-    let retryCount = 0;
-    let hasChakraBalance = false;
-    let chakraValue = 0;
-
-    while (retryCount < maxRetries) {
-      try {
-        console.log(`[Chakra Check] Attempt ${retryCount + 1}/${maxRetries} - Fetching Chakra balance...`);
-        
-        const chakraCheckPromise = getChakraBalance(walletAddress as `0x${string}`);
-        const timeoutPromise = new Promise<number>((_, reject) => 
-          setTimeout(() => reject(new Error('Chakra check timeout')), 15000)
-        );
-        
-        chakraValue = await Promise.race([chakraCheckPromise, timeoutPromise]);
-        hasChakraBalance = chakraValue > 0;
-        
-        // Store in localStorage
-        if (hasChakraBalance) {
-          localStorage.setItem(step3CompleteKey, 'true');
-          localStorage.setItem(chakraStorageKey, chakraValue.toString());
-          localStorage.setItem(lastCheckKey, now.toString());
-          console.log(`[Chakra Check] ✅ Step 3 complete: Chakra balance ${chakraValue}`);
-          break; // Success, exit retry loop
-        } else {
-          localStorage.removeItem(step3CompleteKey);
-          localStorage.removeItem(chakraStorageKey);
-          localStorage.setItem(lastCheckKey, now.toString());
-          console.log(`[Chakra Check] ⚠️ Step 3 incomplete: Chakra balance is zero`);
-          break; // No Chakra, but check succeeded
-        }
-      } catch (error) {
-        console.error(`[Chakra Check] Error on attempt ${retryCount + 1}:`, error);
-        if (retryCount < maxRetries - 1) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          retryCount++;
-          continue;
-        } else {
-          // Final fallback to cache
-          const step3Complete = localStorage.getItem(step3CompleteKey) === 'true';
-          const cachedChakra = localStorage.getItem(chakraStorageKey);
-          hasChakraBalance = step3Complete && cachedChakra !== null;
-          chakraValue = cachedChakra ? parseFloat(cachedChakra) || 0 : 0;
-          console.log(`[Chakra Check] 🔄 Using cached value after ${maxRetries} failed attempts`);
-          break;
-        }
+    try {
+      // Fetch Chakra balance exactly like NavBar does
+      const balance = await getChakraBalance(walletAddress as `0x${string}`);
+      
+      // Update state and localStorage
+      const hasChakraBalance = balance > 0;
+      setHasChakra(hasChakraBalance);
+      setChakraBalance(balance);
+      
+      // Store in localStorage
+      if (hasChakraBalance) {
+        localStorage.setItem(step3CompleteKey, 'true');
+        localStorage.setItem(chakraStorageKey, balance.toString());
+        console.log(`[Chakra Check] ✅ Step 3 complete: Chakra balance ${balance}`);
+      } else {
+        localStorage.removeItem(step3CompleteKey);
+        localStorage.removeItem(chakraStorageKey);
+        console.log(`[Chakra Check] ⚠️ Step 3 incomplete: Chakra balance is zero`);
       }
+    } catch (error) {
+      console.error("Error fetching CHAKRA balance:", error);
+      // On error, fall back to cache if available
+      if (!forceRefresh) {
+        const fallbackCached = localStorage.getItem(step3CompleteKey) === 'true';
+        const fallbackChakra = localStorage.getItem(chakraStorageKey);
+        const chakraValue = fallbackChakra ? parseFloat(fallbackChakra) || 0 : 0;
+        setHasChakra(fallbackCached && chakraValue > 0);
+        setChakraBalance(chakraValue);
+        console.log(`[Chakra Check] 🔄 Check failed, using cached value: ${chakraValue}`);
+      } else {
+        setHasChakra(false);
+        setChakraBalance(0);
+      }
+    } finally {
+      setCheckingChakra(false);
     }
-    
-    setHasChakra(hasChakraBalance);
-    setChakraBalance(chakraValue);
-    setCheckingChakra(false);
   }, [walletAddress, authenticated]);
 
-  // Check character ownership (Step 4)
+  // Check character ownership (Step 4) - using same approach as lobby page
   const checkCharacter = useCallback(async (forceRefresh = false) => {
     if (!walletAddress || !authenticated) {
+      setHasCharacter(false);
       return;
     }
 
     const step4CompleteKey = `onboarding-step4-${walletAddress}`;
-    const lastCheckKey = `onboarding-character-last-check-${walletAddress}`;
-    const lastCheckTime = localStorage.getItem(lastCheckKey);
-    const now = Date.now();
-    const step4Complete = localStorage.getItem(step4CompleteKey) === 'true';
     
-    // Don't check if:
-    // 1. Not forcing refresh AND
-    // 2. Already marked complete AND
-    // 3. Last check was less than 5 minutes ago
-    if (!forceRefresh && step4Complete && 
-        lastCheckTime && (now - parseInt(lastCheckTime)) < 300000) {
+    // ALWAYS check cache first - use it if it exists and is 'true'
+    const cachedStep4Complete = localStorage.getItem(step4CompleteKey) === 'true';
+    
+    if (!forceRefresh && cachedStep4Complete) {
+      // Use cached value immediately
       setHasCharacter(true);
-      console.log('[Onboarding] Using cached character status (checked recently)');
+      console.log('[Onboarding] Using cached character status');
       return;
     }
+    
+    // Only check if cache is missing or false (or force refresh)
 
     setCheckingCharacter(true);
 
     try {
-      if (forceRefresh || !step4Complete) {
-        try {
-          console.log('Fetching characters from contract...');
-          const characterCheckPromise = getCharactersOwnedByUser(walletAddress as `0x${string}`);
-          const timeoutPromise = new Promise<Awaited<ReturnType<typeof getCharactersOwnedByUser>>>((_, reject) => 
-            setTimeout(() => reject(new Error('Character check timeout')), 15000)
-          );
-          
-          const ownedCharacters = await Promise.race([characterCheckPromise, timeoutPromise]);
-          const userHasCharacter = ownedCharacters.length > 0;
-          
-          if (userHasCharacter) {
-            localStorage.setItem(step4CompleteKey, 'true');
-            localStorage.setItem(lastCheckKey, now.toString());
-            console.log(`[Character Check] ✅ Step 4: Found ${ownedCharacters.length} character(s) - marked complete`);
-            setHasCharacter(true);
-          } else {
-            localStorage.removeItem(step4CompleteKey);
-            localStorage.setItem(lastCheckKey, now.toString());
-            console.log(`[Character Check] ⚠️ Step 4: No characters found - marked incomplete`);
-            setHasCharacter(false);
-          }
-        } catch (error) {
-          console.error("[Character Check] Error fetching characters:", error);
-          localStorage.setItem(lastCheckKey, now.toString());
-          
-          if (forceRefresh) {
-            setHasCharacter(false);
-            console.log(`[Character Check] ❌ Force refresh failed - marked incomplete`);
-          } else if (step4Complete) {
-            setHasCharacter(true);
-            console.log(`[Character Check] 🔄 Check failed, but using cached completion status`);
-          } else {
-            setHasCharacter(false);
-            console.log(`[Character Check] ❌ Check failed and no cached completion found`);
-          }
-        }
+      // Fetch owned characters directly from contract - exactly like lobby page
+      const ownedCharacters = await getCharactersOwnedByUser(walletAddress as `0x${string}`);
+      const userHasCharacter = ownedCharacters.length > 0;
+      
+      // Update state and localStorage
+      setHasCharacter(userHasCharacter);
+      
+      if (userHasCharacter) {
+        localStorage.setItem(step4CompleteKey, 'true');
+        console.log(`[Character Check] ✅ Step 4: Found ${ownedCharacters.length} character(s) - marked complete`);
       } else {
-        setHasCharacter(true);
-        console.log(`[Character Check] 📦 Using cached completion status (character exists)`);
+        localStorage.removeItem(step4CompleteKey);
+        console.log(`[Character Check] ⚠️ Step 4: No characters found - marked incomplete`);
       }
     } catch (error) {
-      console.error("[Character Check] Error checking character:", error);
-      const cachedStep4Complete = localStorage.getItem(step4CompleteKey) === 'true';
-      setHasCharacter(cachedStep4Complete);
+      console.error("Error fetching characters:", error);
+      
+      // On error, fall back to cache if available
+      if (forceRefresh) {
+        setHasCharacter(false);
+        console.log(`[Character Check] ❌ Force refresh failed - marked incomplete`);
+      } else {
+        // Use cached value if available, otherwise false
+        const fallbackCached = localStorage.getItem(step4CompleteKey) === 'true';
+        setHasCharacter(fallbackCached);
+        console.log(`[Character Check] 🔄 Check failed, using cached value: ${fallbackCached}`);
+      }
     } finally {
       setCheckingCharacter(false);
     }
@@ -282,7 +251,7 @@ export default function OnboardingDialog() {
     console.log(`[Onboarding] Loading status for address: ${walletAddress}`);
 
     // Load step 2 (Faucet) completion for THIS specific address
-    const step2CompleteKey = `onboarding-step2-${walletAddress}`;
+      const step2CompleteKey = `onboarding-step2-${walletAddress}`;
     const step2Complete = localStorage.getItem(step2CompleteKey) === 'true';
     setHasFaucetDone(step2Complete);
     console.log(`[Onboarding] Step 2 (Faucet) for ${walletAddress}: ${step2Complete ? 'Complete' : 'Incomplete'}`);
@@ -298,7 +267,7 @@ export default function OnboardingDialog() {
       setHasChakra(chakraValue > 0);
       setChakraBalance(chakraValue);
       console.log(`[Onboarding] Step 3 (Chakra) for ${walletAddress}: ${chakraValue} Chakra`);
-    } else {
+      } else {
       setHasChakra(false);
       setChakraBalance(0);
       console.log(`[Onboarding] Step 3 (Chakra) for ${walletAddress}: Not complete`);
@@ -311,36 +280,66 @@ export default function OnboardingDialog() {
     console.log(`[Onboarding] Step 4 (Character) for ${walletAddress}: ${step4Complete ? 'Complete' : 'Incomplete'}`);
   }, [walletAddress, authenticated, ready]);
 
-  // Auto-check Chakra and Character if not in localStorage for THIS specific address
+  // Auto-check Chakra and Character in background if not complete
   useEffect(() => {
     if (!ready || !authenticated || !walletAddress) {
       return;
     }
 
-    // Always check for the current address - don't assume completion
     const step3CompleteKey = `onboarding-step3-${walletAddress}`;
     const step4CompleteKey = `onboarding-step4-${walletAddress}`;
     const step3Complete = localStorage.getItem(step3CompleteKey) === 'true';
     const step4Complete = localStorage.getItem(step4CompleteKey) === 'true';
     
-    console.log(`[Onboarding] Auto-checking for address: ${walletAddress}`);
-    console.log(`[Onboarding] Step 3 cached: ${step3Complete}, Step 4 cached: ${step4Complete}`);
-    
-    // Auto-check if not complete for THIS address
+    // Only check if localStorage is false or doesn't exist
     if (!step3Complete) {
-      const timer = setTimeout(() => {
-        console.log(`[Onboarding] Auto-checking Chakra for ${walletAddress}`);
+      // Initial check after a short delay
+      const initialTimer = setTimeout(() => {
+        console.log(`[Onboarding] Background: Auto-checking Chakra for ${walletAddress}`);
         checkChakra(false);
-      }, 1000);
-      return () => clearTimeout(timer);
+      }, 2000);
+      
+      // Set up periodic background checks every 30 seconds
+      const intervalId = setInterval(() => {
+        const currentStep3Complete = localStorage.getItem(step3CompleteKey) === 'true';
+        if (!currentStep3Complete) {
+          console.log(`[Onboarding] Background: Periodic Chakra check for ${walletAddress}`);
+          checkChakra(false);
+        } else {
+          // Stop checking if now complete
+          clearInterval(intervalId);
+        }
+      }, 30000); // Check every 30 seconds
+      
+      return () => {
+        clearTimeout(initialTimer);
+        clearInterval(intervalId);
+      };
     }
     
     if (!step4Complete) {
-      const timer = setTimeout(() => {
-        console.log(`[Onboarding] Auto-checking Character for ${walletAddress}`);
+      // Initial check after a short delay
+      const initialTimer = setTimeout(() => {
+        console.log(`[Onboarding] Background: Auto-checking Character for ${walletAddress}`);
         checkCharacter(false);
-      }, 2000);
-      return () => clearTimeout(timer);
+      }, 3000);
+      
+      // Set up periodic background checks every 30 seconds
+      const intervalId = setInterval(() => {
+        const currentStep4Complete = localStorage.getItem(step4CompleteKey) === 'true';
+        if (!currentStep4Complete) {
+          console.log(`[Onboarding] Background: Periodic Character check for ${walletAddress}`);
+        checkCharacter(false);
+        } else {
+          // Stop checking if now complete
+          clearInterval(intervalId);
+        }
+      }, 30000); // Check every 30 seconds
+      
+      return () => {
+        clearTimeout(initialTimer);
+        clearInterval(intervalId);
+      };
     }
   }, [walletAddress, authenticated, ready, checkChakra, checkCharacter]);
 
@@ -353,41 +352,41 @@ export default function OnboardingDialog() {
     }
 
     // Check profile (synchronous) - this is per user, not per address
-    const userHasProfile = !!(user && user.id);
-    setHasProfile(userHasProfile);
-    
+      const userHasProfile = !!(user && user.id);
+      setHasProfile(userHasProfile);
+      
     // Get step completion status from localStorage for THIS specific address
-    const step2CompleteKey = `onboarding-step2-${walletAddress}`;
-    const step3CompleteKey = `onboarding-step3-${walletAddress}`;
+      const step2CompleteKey = `onboarding-step2-${walletAddress}`;
+      const step3CompleteKey = `onboarding-step3-${walletAddress}`;
     const step4CompleteKey = `onboarding-step4-${walletAddress}`;
-    const onboardingCompleteKey = `onboarding-complete-${walletAddress}`;
-    
+      const onboardingCompleteKey = `onboarding-complete-${walletAddress}`;
+      
     // Always read from localStorage to ensure we're checking the correct address
-    const step2Complete = localStorage.getItem(step2CompleteKey) === 'true';
+      const step2Complete = localStorage.getItem(step2CompleteKey) === 'true';
     const step3Complete = localStorage.getItem(step3CompleteKey) === 'true';
     const step4Complete = localStorage.getItem(step4CompleteKey) === 'true';
     
     console.log(`[Onboarding] Checking completion for address: ${walletAddress}`);
     console.log(`[Onboarding] Steps: Profile=${userHasProfile}, Faucet=${step2Complete}, Chakra=${step3Complete}, Character=${step4Complete}`);
-    
-    // Don't show on task pages
-    if (pathname === '/mint-character') {
-      setIsOpen(false);
-      return;
-    }
-    
+      
+      // Don't show on task pages
+      if (pathname === '/mint-character') {
+        setIsOpen(false);
+        return;
+      }
+      
     // Use localStorage values directly (not state) to ensure we check the correct address
     const allComplete = userHasProfile && step2Complete && step3Complete && step4Complete;
     
     // Determine if dialog should show for THIS address
     if (allComplete) {
       localStorage.setItem(onboardingCompleteKey, 'true');
-      setIsOpen(false);
+        setIsOpen(false);
       console.log(`[Onboarding] All steps complete for ${walletAddress} - hiding dialog`);
-    } else {
+      } else {
       localStorage.removeItem(onboardingCompleteKey);
       const shouldShow = !userHasProfile || !step2Complete || !step3Complete || !step4Complete;
-      setIsOpen(shouldShow);
+        setIsOpen(shouldShow);
       console.log(`[Onboarding] Steps incomplete for ${walletAddress} - ${shouldShow ? 'showing' : 'hiding'} dialog`);
     }
   }, [walletAddress, ready, authenticated, user, pathname, hasFaucetDone, hasChakra, hasCharacter]);
@@ -426,7 +425,7 @@ export default function OnboardingDialog() {
       const isCharacterComplete = localStorage.getItem(step4CompleteKey) === 'true';
       
       if (!isChakraComplete || !isCharacterComplete) {
-        const interval = setInterval(() => {
+      const interval = setInterval(() => {
           const lastCheckKey3 = `onboarding-chakra-last-check-${walletAddress}`;
           const lastCheckKey4 = `onboarding-character-last-check-${walletAddress}`;
           const lastCheckTime3 = localStorage.getItem(lastCheckKey3);
@@ -439,12 +438,12 @@ export default function OnboardingDialog() {
           }
           
           if (!isCharacterComplete && (!lastCheckTime4 || (now - parseInt(lastCheckTime4)) > 300000)) {
-            checkCharacter(false);
+        checkCharacter(false);
             localStorage.setItem(lastCheckKey4, now.toString());
           }
         }, 300000); // Check every 5 minutes
-        return () => clearInterval(interval);
-      }
+      return () => clearInterval(interval);
+    }
     }
   }, [walletAddress, authenticated, ready, checkChakra, checkCharacter]);
 
@@ -745,13 +744,13 @@ export default function OnboardingDialog() {
                     </div>
                     
                     {/* Go to Faucet Button */}
-                    <Button
-                      onClick={() => {
-                        window.open('https://www.hackquest.io/faucets/5003', '_blank');
-                      }}
-                      className="w-full bg-blue-600 hover:bg-blue-700 flex items-center justify-center gap-2"
-                    >
-                      <Droplet className="w-4 h-4" />
+                  <Button
+                    onClick={() => {
+                      window.open('https://www.hackquest.io/faucets/5003', '_blank');
+                    }}
+                    className="w-full bg-blue-600 hover:bg-blue-700 flex items-center justify-center gap-2"
+                  >
+                    <Droplet className="w-4 h-4" />
                       Go to Faucet
                     </Button>
                     
@@ -901,8 +900,8 @@ export default function OnboardingDialog() {
                       </>
                     ) : (
                       <>
-                        <Sword className="w-4 h-4" />
-                        Mint FREE Character
+                    <Sword className="w-4 h-4" />
+                    Mint FREE Character
                       </>
                     )}
                   </Button>

@@ -65,3 +65,15 @@ export function getCharacterIdFromContractId(contractId: number): string | null 
   return CONTRACT_ID_TO_CHARACTER_ID[contractId] || null;
 }
 
+/**
+ * Get contract character ID from character ID string (e.g., "hidden_leaf-fire" -> 1)
+ */
+export function getContractCharacterIdFromString(characterId: string): number | null {
+  // Find the contract ID that maps to this character ID string
+  for (const [contractId, charId] of Object.entries(CONTRACT_ID_TO_CHARACTER_ID)) {
+    if (charId === characterId) {
+      return parseInt(contractId, 10);
+    }
+  }
+  return null;
+}
