@@ -153,6 +153,31 @@ export function getContractCharacterIdFromString(characterIdString: string): num
 }
 
 /**
+ * Get player wins and losses from contract
+ * @param playerAddress - The wallet address of the player
+ * @returns Object with wins and losses
+ */
+export async function getPlayerWinsAndLosses(playerAddress: `0x${string}`): Promise<{ wins: number; losses: number }> {
+  try {
+    const result = await publicClient.readContract({
+      address: STAKEWARS_CONTRACT_ADDRESS as `0x${string}`,
+      abi: STAKEWARS_ABI,
+      functionName: "getPlayerWinsAndLosses",
+      args: [playerAddress],
+    }) as [bigint, bigint];
+    
+    return {
+      wins: Number(result[0]),
+      losses: Number(result[1]),
+    };
+  } catch (error) {
+    console.error(`Error fetching wins/losses for ${playerAddress}:`, error);
+    // Return zeros on error
+    return { wins: 0, losses: 0 };
+  }
+}
+
+/**
  * Get buff info from contract
  */
 export async function getBuffInfo(village: number, buffId: number) {

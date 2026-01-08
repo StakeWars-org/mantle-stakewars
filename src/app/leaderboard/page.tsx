@@ -10,15 +10,10 @@ import { RefreshCw } from "lucide-react";
 interface LeaderboardProfile {
   address: string;
   walletAddress: string;
-  identity: string;
-  userId: string;
   wins: number;
   losses: number;
   totalGames: number;
   winRate: number;
-  xp: number;
-  level: number;
-  rankName: string;
   rank: number;
 }
 
@@ -33,7 +28,7 @@ export default function LeaderboardPage() {
   const [rawLeaderboard, setRawLeaderboard] = useState<LeaderboardProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [sortBy, setSortBy] = useState<'wins' | 'winRate' | 'xp' | 'level'>('wins');
+  const [sortBy, setSortBy] = useState<'wins' | 'winRate'>('wins');
 
   useEffect(() => {
     fetchLeaderboard();
@@ -51,16 +46,6 @@ export default function LeaderboardPage() {
             return b.winRate - a.winRate;
           }
           return b.totalGames - a.totalGames;
-        
-        case 'xp':
-          return b.xp - a.xp;
-        
-        case 'level':
-          // Sort by level, then by XP (tiebreaker)
-          if (b.level !== a.level) {
-            return b.level - a.level;
-          }
-          return b.xp - a.xp;
         
         case 'wins':
         default:
@@ -82,7 +67,7 @@ export default function LeaderboardPage() {
     if (ranked.length > 0) {
       console.log(`\n=== TOP 5 AFTER SORTING BY ${sortBy.toUpperCase()} ===`);
       ranked.slice(0, 5).forEach((profile) => {
-        console.log(`${profile.rank}. ${profile.walletAddress} - ${profile.wins}W/${profile.losses}L (${profile.winRate}%) - Level ${profile.level} (${profile.rankName}), XP: ${profile.xp}`);
+        console.log(`${profile.rank}. ${profile.walletAddress} - ${profile.wins}W/${profile.losses}L (${profile.winRate}%)`);
       });
       console.log("=== END TOP 5 ===\n");
     }
@@ -125,23 +110,21 @@ export default function LeaderboardPage() {
         }
         
         // Log all profiles for inspection
-        console.log("\n=== ALL LEADERBOARD PROFILES ===");
-        console.table(data.leaderboard.map((p: LeaderboardProfile) => ({
-          Rank: p.rank,
-          Wallet: p.walletAddress.slice(0, 12) + '...',
-          Wins: p.wins,
-          Losses: p.losses,
-          WinRate: p.winRate + '%',
-          Level: `${p.level} (${p.rankName})`,
-          XP: p.xp,
-          Games: p.totalGames
-        })));
-        console.log("=== END ALL PROFILES ===\n");
+        // console.log("\n=== ALL LEADERBOARD PROFILES ===");
+        // console.table(data.leaderboard.map((p: LeaderboardProfile) => ({
+        //   Rank: p.rank,
+        //   Wallet: p.walletAddress.slice(0, 12) + '...',
+        //   Wins: p.wins,
+        //   Losses: p.losses,
+        //   WinRate: p.winRate + '%',
+        //   Games: p.totalGames
+        // })));
+        // console.log("=== END ALL PROFILES ===\n");
       } else {
         toast.error(`Failed to load leaderboard: ${data.error}`);
       }
     } catch (error) {
-      console.error("Error fetching leaderboard:", error);
+      // console.error("Error fetching leaderboard:", error);
       toast.error("Failed to load leaderboard");
     } finally {
       setLoading(false);
@@ -226,26 +209,6 @@ export default function LeaderboardPage() {
             >
               Win Rate %
             </button>
-            <button
-              onClick={() => setSortBy('xp')}
-              className={`px-6 py-3 rounded-lg font-semibold transition-all ${
-                sortBy === 'xp'
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-              }`}
-            >
-              Most XP
-            </button>
-            <button
-              onClick={() => setSortBy('level')}
-              className={`px-6 py-3 rounded-lg font-semibold transition-all ${
-                sortBy === 'level'
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-              }`}
-            >
-              Highest Level
-            </button>
           </div>
         </div>
 
@@ -269,14 +232,12 @@ export default function LeaderboardPage() {
                 <p className="text-blue-400 text-xl font-bold">{myRank.winRate}%</p>
               </div>
               <div>
-                <p className="text-gray-400 text-sm">Level</p>
-                <p className="text-purple-400 text-xl font-bold">
-                  {myRank.level} ({myRank.rankName})
-                </p>
+                <p className="text-gray-400 text-sm">Total Games</p>
+                <p className="text-purple-400 text-xl font-bold">{myRank.totalGames}</p>
               </div>
               <div>
-                <p className="text-gray-400 text-sm">XP</p>
-                <p className="text-yellow-400 text-xl font-bold">{myRank.xp}</p>
+                <p className="text-gray-400 text-sm">Losses</p>
+                <p className="text-red-400 text-xl font-bold">{myRank.losses}</p>
               </div>
             </div>
           </div>
@@ -295,13 +256,11 @@ export default function LeaderboardPage() {
             <div className="overflow-x-auto">
               <div className="min-w-[768px]">
                 {/* Table Header */}
-                <div className="bg-gray-900/50 px-6 py-4 grid grid-cols-7 gap-4 text-gray-400 text-sm font-semibold border-b border-gray-700">
+                <div className="bg-gray-900/50 px-6 py-4 grid grid-cols-5 gap-4 text-gray-400 text-sm font-semibold border-b border-gray-700">
                   <div>Rank</div>
                   <div className="col-span-2">Player</div>
                   <div className="text-center">Wins</div>
                   <div className="text-center">Win Rate</div>
-                  <div className="text-center">Level</div>
-                  <div className="text-center">XP</div>
                 </div>
 
                 {/* Table Rows */}
@@ -312,7 +271,7 @@ export default function LeaderboardPage() {
                     return (
                       <div
                         key={profile.address}
-                        className={`px-6 py-4 grid grid-cols-7 gap-4 items-center transition-colors ${
+                        className={`px-6 py-4 grid grid-cols-5 gap-4 items-center transition-colors ${
                           isCurrentUser
                             ? 'bg-purple-500/20 border-l-4 border-purple-500'
                             : 'hover:bg-gray-700/30'
@@ -345,18 +304,6 @@ export default function LeaderboardPage() {
                         <div className="text-center">
                           <p className="text-blue-400 font-bold">{profile.winRate}%</p>
                           <p className="text-gray-500 text-xs">{profile.totalGames} games</p>
-                        </div>
-
-                        {/* Level */}
-                        <div className="text-center">
-                          <p className="text-purple-400 font-bold">
-                            {profile.level} ({profile.rankName})
-                          </p>
-                        </div>
-
-                        {/* XP */}
-                        <div className="text-center">
-                          <p className="text-yellow-400 font-bold">{profile.xp}</p>
                         </div>
                       </div>
                     );
@@ -392,9 +339,9 @@ export default function LeaderboardPage() {
               </p>
             </div>
             <div>
-              <p className="text-gray-400 text-sm">Total XP Earned</p>
+              <p className="text-gray-400 text-sm">Total Wins</p>
               <p className="text-white text-2xl font-bold">
-                {leaderboard.reduce((sum, p) => sum + p.xp, 0).toLocaleString()}
+                {leaderboard.reduce((sum, p) => sum + p.wins, 0).toLocaleString()}
               </p>
             </div>
           </div>

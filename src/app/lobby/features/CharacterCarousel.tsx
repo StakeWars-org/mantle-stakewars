@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import useOnlineGameStore from "@/store/useOnlineGame";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { toast } from "react-toastify";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, usePathname } from "next/navigation";
 import { useRouter } from "next/navigation";
 import Missions from "@/components/Missions";
 
@@ -31,6 +31,7 @@ export default function CharacterCarousel({
 }: CharacterCarouselProps) {
   const { ready, authenticated } = usePrivy();
   const { wallets } = useWallets();
+  const pathname = usePathname();
   
   // Get wallet address from Privy
   const walletAddress = wallets[0]?.address || '';
@@ -247,7 +248,7 @@ export default function CharacterCarousel({
           </Button>
 
           <div className="flex items-center gap-5 pb-12 sm:pb-5">
-            {!isAIGame && <Missions character={selectedCharacter as Character} />}
+            {!isAIGame && pathname !== '/lobby' && <Missions character={selectedCharacter as Character} />}
 
             {isAIGame ? null : (
               <>
