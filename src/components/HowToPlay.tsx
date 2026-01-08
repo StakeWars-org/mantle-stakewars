@@ -54,18 +54,10 @@ export default function HowToPlay() {
 
           {/* Setup Steps */}
           <div>
-            <h3 className="text-xl font-bold text-white mb-4">Quick Setup (3 Steps)</h3>
+            <h3 className="text-xl font-bold text-white mb-4">Quick Setup (4 Steps)</h3>
             <div className="space-y-3">
               <div className="flex items-start gap-3 bg-gray-800/50 p-4 rounded-lg border border-purple-500/30">
                 <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center flex-shrink-0 font-bold">1</div>
-                <div>
-                  <p className="text-white font-semibold">Get Mantle Tokens</p>
-                  <p className="text-gray-400 text-sm">Use the faucet to get free MNT for transaction fees</p>
-                </div>
-              </div>
-              
-              <div className="flex items-start gap-3 bg-gray-800/50 p-4 rounded-lg border border-purple-500/30">
-                <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center flex-shrink-0 font-bold">2</div>
                 <div>
                   <p className="text-white font-semibold">Create Your Account</p>
                   <p className="text-gray-400 text-sm">Click &quot;Create User&quot; to set up your blockchain account</p>
@@ -73,7 +65,23 @@ export default function HowToPlay() {
               </div>
               
               <div className="flex items-start gap-3 bg-gray-800/50 p-4 rounded-lg border border-purple-500/30">
+                <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center flex-shrink-0 font-bold">2</div>
+                <div>
+                  <p className="text-white font-semibold">Get Mantle Tokens</p>
+                  <p className="text-gray-400 text-sm">Use the faucet to get free MNT for transaction fees</p>
+                </div>
+              </div>
+              
+              <div className="flex items-start gap-3 bg-gray-800/50 p-4 rounded-lg border border-purple-500/30">
                 <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center flex-shrink-0 font-bold">3</div>
+                <div>
+                  <p className="text-white font-semibold">Mint Chakra</p>
+                  <p className="text-gray-400 text-sm">Mint your starter CHAKRA tokens to begin playing</p>
+                </div>
+              </div>
+              
+              <div className="flex items-start gap-3 bg-gray-800/50 p-4 rounded-lg border border-purple-500/30">
+                <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center flex-shrink-0 font-bold">4</div>
                 <div>
                   <p className="text-white font-semibold">Mint Your Character</p>
                   <p className="text-gray-400 text-sm">Get your first character FREE and start playing!</p>
@@ -176,27 +184,27 @@ export default function HowToPlay() {
                   <p className="text-white font-bold">Roll to Decide First Player</p>
                 </div>
                 <p className="text-gray-300 text-sm ml-8">
-                  Both players roll dice. Highest number goes first.
+                  Both players roll dice. Highest number goes first. This is the ONLY dice roll in the game!
                 </p>
               </div>
 
               <div className="bg-gray-800/50 border-l-4 border-blue-500 p-4 rounded-r-lg">
                 <div className="flex items-center gap-2 mb-2">
                   <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-xs font-bold">2</div>
-                  <p className="text-white font-bold">Roll for Your Action</p>
+                  <p className="text-white font-bold">Select Your Ability</p>
                 </div>
                 <p className="text-gray-300 text-sm ml-8">
-                  Each dice number corresponds to an attack or defense ability from your character.
+                  On your turn, manually select any ability from your character&apos;s 6 abilities. Choose attacks or defenses based on your strategy!
                 </p>
               </div>
 
               <div className="bg-gray-800/50 border-l-4 border-green-500 p-4 rounded-r-lg">
                 <div className="flex items-center gap-2 mb-2">
                   <div className="w-6 h-6 bg-green-600 rounded-full flex items-center justify-center text-xs font-bold">3</div>
-                  <p className="text-white font-bold">Execute Your Move</p>
+                  <p className="text-white font-bold">Manage Your Stamina</p>
                 </div>
                 <p className="text-gray-300 text-sm ml-8">
-                  Your dice roll determines your action. Each number corresponds to a specific attack or defense ability.
+                  Each ability costs stamina (15-50 for attacks, 15 for defenses). You start with 100 stamina and regenerate +12 per turn. Plan your moves wisely!
                 </p>
               </div>
 
@@ -206,10 +214,37 @@ export default function HowToPlay() {
                   <p className="text-white font-bold">Alternate Turns</p>
                 </div>
                 <p className="text-gray-300 text-sm ml-8">
-                  Players take turns until one reaches 0 HP. Last warrior standing wins!
+                  Players take turns selecting abilities until one reaches 0 HP. Last warrior standing wins!
                 </p>
               </div>
             </div>
+          </div>
+
+          {/* Stamina System */}
+          <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-4">
+            <h3 className="text-lg font-bold text-yellow-300 mb-2">⚡ Stamina System</h3>
+            <div className="space-y-2 text-sm text-gray-300">
+              <p><span className="font-bold text-white">Starting Stamina:</span> 100</p>
+              <p><span className="font-bold text-white">Regeneration:</span> +12 stamina per turn</p>
+              <p><span className="font-bold text-white">Stamina Costs:</span></p>
+              <ul className="ml-4 space-y-1">
+                <li>• Attack 20: 15 stamina</li>
+                <li>• Attack 25: 20 stamina</li>
+                <li>• Attack 30: 30 stamina</li>
+                <li>• Attack 35: 50 stamina</li>
+                <li>• Defense abilities: 15 stamina</li>
+              </ul>
+              <p className="mt-2 text-yellow-200"><span className="font-bold">Critical Hits:</span> Deal +3 to +5 above base damage to gain +20 bonus stamina!</p>
+            </div>
+          </div>
+
+          {/* Cooldown System */}
+          <div className="bg-orange-900/20 border border-orange-500/30 rounded-lg p-4">
+            <h3 className="text-lg font-bold text-orange-300 mb-2">🔒 Cooldown System</h3>
+            <p className="text-gray-300 text-sm">
+              Stronger attacks have cooldowns after use: Attack 25 (1 turn), Attack 30 (2 turns), Attack 35 (3 turns). 
+              The weakest attack (20) has no cooldown. Defense types also have 2-turn cooldowns after being used.
+            </p>
           </div>
         </div>
       )
@@ -238,11 +273,11 @@ export default function HowToPlay() {
               </div>
             </div>
             <p className="text-gray-200 leading-relaxed">
-              Returns the incoming damage back to the attacker. Perfect for punishing aggressive opponents! Uses your current turn.
+              Returns the incoming damage back to the attacker. Perfect for punishing aggressive opponents! Must be in your defense inventory to use.
             </p>
             <div className="mt-3 bg-purple-950/50 p-3 rounded-lg">
               <p className="text-purple-300 text-sm">
-                <span className="font-bold">⚡ Effect:</span> Attacker takes their own damage (uses your turn)
+                <span className="font-bold">⚡ Effect:</span> Attacker takes their own damage. Costs 15 stamina to add to inventory. 2-turn cooldown after use.
               </p>
             </div>
           </div>
@@ -259,11 +294,11 @@ export default function HowToPlay() {
               </div>
             </div>
             <p className="text-gray-200 leading-relaxed">
-              Completely avoid incoming damage. You keep your turn after dodging!
+              Completely avoid incoming damage. Must be in your defense inventory to use when attacked.
             </p>
             <div className="mt-3 bg-cyan-950/50 p-3 rounded-lg">
               <p className="text-cyan-300 text-sm">
-                <span className="font-bold">⚡ Effect:</span> Take 0 damage + keep initiative
+                <span className="font-bold">⚡ Effect:</span> Take 0 damage. Costs 15 stamina to add to inventory. 2-turn cooldown after use.
               </p>
             </div>
           </div>
@@ -280,11 +315,11 @@ export default function HowToPlay() {
               </div>
             </div>
             <p className="text-gray-200 leading-relaxed">
-              Reduces incoming damage by 50%. Uses your current turn to activate.
+              Reduces incoming damage by 50%. Must be in your defense inventory to use when attacked.
             </p>
             <div className="mt-3 bg-blue-950/50 p-3 rounded-lg">
               <p className="text-blue-300 text-sm">
-                <span className="font-bold">⚡ Effect:</span> Take 50% damage (uses your turn to activate)
+                <span className="font-bold">⚡ Effect:</span> Take 50% damage. Costs 15 stamina to add to inventory. 2-turn cooldown after use.
               </p>
             </div>
           </div>
@@ -407,21 +442,21 @@ export default function HowToPlay() {
             <div className="bg-gradient-to-r from-blue-900/40 to-cyan-900/40 border border-blue-500/50 rounded-lg p-4">
               <h3 className="text-lg font-bold text-blue-300 mb-2">🛡️ Defense Timing is Key</h3>
               <p className="text-gray-200 text-sm leading-relaxed">
-                Don&apos;t waste your defensive abilities on small attacks. Save Reflect/Dodge for big damage!
+                Don&apos;t waste your defensive abilities on small attacks. Save Reflect/Dodge for big damage! Remember you can only hold 2 defenses max.
               </p>
             </div>
 
             <div className="bg-gradient-to-r from-cyan-900/40 to-green-900/40 border border-cyan-500/50 rounded-lg p-4">
-              <h3 className="text-lg font-bold text-cyan-300 mb-2">💥 Ability Management</h3>
+              <h3 className="text-lg font-bold text-cyan-300 mb-2">⚡ Stamina Management</h3>
               <p className="text-gray-200 text-sm leading-relaxed">
-                Each defensive ability can only be used once. Use them wisely - you can&apos;t get them back!
+                Manage your stamina carefully! Strong attacks cost 30-50 stamina. You regenerate +12 per turn, so plan your moves to avoid running out.
               </p>
             </div>
 
             <div className="bg-gradient-to-r from-green-900/40 to-yellow-900/40 border border-green-500/50 rounded-lg p-4">
-              <h3 className="text-lg font-bold text-green-300 mb-2">🎲 Dice-Based Combat</h3>
+              <h3 className="text-lg font-bold text-green-300 mb-2">🎯 Ability Selection</h3>
               <p className="text-gray-200 text-sm leading-relaxed">
-                Each dice number maps to a specific ability. Learn which numbers give you which moves!
+                You manually select abilities - no dice rolls! Choose strategically based on stamina, cooldowns, and your opponent&apos;s health.
               </p>
             </div>
           </div>
@@ -443,7 +478,15 @@ export default function HowToPlay() {
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-orange-400 font-bold">•</span>
-                <span><span className="font-bold text-white">Ability Conservation:</span> Don&apos;t waste defensive abilities early - you only get them once per match</span>
+                <span><span className="font-bold text-white">Damage Ranges:</span> Attacks deal random damage within ±5 of base value. Critical hits (+3 to +5 above base) reward +20 stamina!</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-orange-400 font-bold">•</span>
+                <span><span className="font-bold text-white">Cooldown Management:</span> Stronger attacks have cooldowns (1-3 turns). Plan your sequence to avoid being locked out of your best moves</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-orange-400 font-bold">•</span>
+                <span><span className="font-bold text-white">Defense Limits:</span> Maximum 2 defenses in inventory, no duplicates. Use them strategically when big attacks are coming!</span>
               </li>
           </ul>
           </div>
@@ -513,7 +556,7 @@ export default function HowToPlay() {
               Transfer CHAKRA
             </h4>
             <p className="text-gray-300 text-xs">
-              Send CHAKRA to friends or trade with other players. Use the Transfer page to send CHK to any Solana address.
+              Send CHAKRA to friends or trade with other players. Use the Transfer page to send CHK to any Mantle address.
             </p>
           </div>
         </div>
