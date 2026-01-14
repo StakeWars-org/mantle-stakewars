@@ -8,8 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CreateTournamentRequest, TournamentSize, PrizeSplit } from "@/types/tournament";
 
-const PROJECT_AUTHORITY = process.env.PROJECT_AUTHORITY as string;
-
 export default function CreateTournamentPage() {
   const router = useRouter();
   const { ready, authenticated, login } = usePrivy();
@@ -17,7 +15,6 @@ export default function CreateTournamentPage() {
   
   // Get wallet address from Privy
   const walletAddress = wallets[0]?.address || '';
-  const isAdmin = walletAddress?.toLowerCase() === PROJECT_AUTHORITY?.toLowerCase();
   
   const [formData, setFormData] = useState({
     name: "",
@@ -187,26 +184,6 @@ export default function CreateTournamentPage() {
     );
   }
 
-  if (!isAdmin) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 flex items-center justify-center p-8">
-        <div className="bg-gray-800/50 backdrop-blur-sm border-2 border-red-500/30 rounded-xl p-8 text-center max-w-md">
-          <h2 className="text-3xl font-bold text-white mb-4">
-            🔒 Admin Access Only
-          </h2>
-          <p className="text-gray-300 mb-6">
-            Only administrators can create tournaments. Please join existing tournaments instead.
-          </p>
-          <Button
-            onClick={() => router.push("/tournaments")}
-            className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg"
-          >
-            Browse Tournaments
-          </Button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 p-8">
