@@ -7,17 +7,9 @@ import { Button } from "@/components/ui/button";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import Link from "next/link";
 
-const PROJECT_AUTHORITY = process.env.PROJECT_AUTHORITY as string;
-
 export default function TournamentsPage() {
   const router = useRouter();
   const { ready, authenticated } = usePrivy();
-  const { wallets } = useWallets();
-  
-  // Get wallet address from Privy
-  const walletAddress = wallets[0]?.address || '';
-  
-  const isAdmin = walletAddress.toLowerCase() === PROJECT_AUTHORITY;
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<TournamentStatus | "all">("all");
@@ -75,20 +67,16 @@ export default function TournamentsPage() {
             </p>
           </div>
           
-          {authenticated && isAdmin ? (
+          {authenticated ? (
             <Button
               onClick={() => router.push("/tournaments/create")}
               className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-8 py-6 text-lg font-semibold rounded-xl shadow-lg"
             >
-              🔧 Create Tournament (Admin)
+              🏆 Create Tournament
             </Button>
-          ) : authenticated ? (
-            <div className="text-gray-400 text-sm">
-              Only admins can create tournaments
-            </div>
           ) : (
             <div className="text-yellow-400 text-sm">
-              Connect wallet to view tournaments
+              Connect wallet to create tournaments
             </div>
           )}
         </div>
