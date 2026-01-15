@@ -490,22 +490,21 @@ StakeWars functions as a competitive social network — not just a game.
 
 ## 13. Regulatory & Compliance Considerations
 
-StakeWars is a skill-based competitive game, not a game of chance.
+StakeWars does not issue, offer, or promote regulated financial assets or investment products.
 
-- Match outcomes are driven by player decisions and strategy  
-- Randomness is limited and non-dominant  
-- Competitive modes may be restricted by region or age  
+- **CHAKRA** is a utility token used exclusively for in-game actions such as match entry, character unlocking, and gameplay participation. It is not marketed or designed as an investment, security, or financial instrument.
+- **Character NFTs (ERC-1155)** represent in-game characters and progression rights. They do not confer ownership, profit-sharing rights, dividends, or claims on protocol revenue.
+- **Yield and reward distributions**, where applicable, are derived solely from platform-generated gameplay fees and are performance-based. They are not fixed, guaranteed, or passive returns and do not constitute financial yield products.
 
-### Fair Play & Anti-Dominance Design
+StakeWars does not offer:
+- Fixed or guaranteed returns
+- Passive income mechanisms
+- Interest-bearing instruments
+- Investment contracts
 
-To prevent capital-based dominance:
-- Entry limits per account or character  
-- Rank-based matchmaking  
-- Tactical buff restrictions in competitive modes  
-- Character fatigue to encourage rotation  
-- Fixed entry structures  
+Participation in competitive modes and reward systems is optional and intended purely for gameplay, competition, and social engagement.
 
-These safeguards ensure skill remains the primary determinant of success.
+StakeWars is designed and positioned as a skill-based competitive game and social platform, not a financial product.
 
 ---
 
