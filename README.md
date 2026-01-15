@@ -52,6 +52,8 @@ Demo Video - https://youtu.be/W8_AwXnfQDQ
 
 Pitch Video - https://youtu.be/e3YkIhn7yJg
 
+Live website - https://stakewars.fun/
+
 ### Problem
 
 Most GameFi projects rely on inflationary token rewards to attract players.  
